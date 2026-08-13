@@ -71,7 +71,10 @@ CascadeVPN/
 │   ├── bridge.docker.json     — образец bridge.json под docker-сеть
 │   └── vpn.base.toml.example  — образец базового конфига под контейнер (порт 8443)
 └── deploy/
-    └── deploy.sh               — rsync+ssh деплой репозитория на сервер + install
+    ├── deploy.sh               — rsync+ssh деплой репозитория на сервер + install
+    └── bootstrap-ubuntu.sh     — полное автоматическое развёртывание НА сервере
+                                  (Ubuntu): apt-зависимости → install/ttx-install.sh →
+                                  bridge.json → doctor/reconcile → systemd enable → smoke-test
 ```
 
 Все пути внутри `install/ttx-install.sh` (`$SRC/bridge/...`,
@@ -209,15 +212,43 @@ TrustTunnel и 3x-ui плюс список используемых API-эндп
 
 ## 11. Развёртывание
 
-- **Bare-metal, вручную:** `sudo ./install/ttx-install.sh` на самом сервере
-  (см. README §3) — ставит upstream штатными инсталляторами и раскладывает
-  обвязку в `/opt/ttx`, `/etc/ttx`.
-- **Bare-metal, удалённо:** `./deploy/deploy.sh user@host` с клиентской
+- **Bare-metal, полностью автоматически (Ubuntu):**
+  `sudo ./deploy/bootstrap-ubuntu.sh --panel-user admin --panel-pass '...'`
+  на самом сервере. Делает всё от `apt-get update` до включённых
+  `x-ui`/`trusttunnel`/`ttx-bridge` и `tests/e2e-smoke.sh` в конце:
+  проверяет, что это Ubuntu+systemd+root; ставит apt-зависимости; при
+  системном python3 < 3.11 ставит отдельно `python3.11` (штатный
+  `/usr/bin/python3` не трогает, вместо этого переключает на него обёртку
+  `/usr/local/bin/ttx`); опционально (`--configure-firewall`, по умолчанию
+  выключено) открывает 443/tcp+udp в ufw, предварительно разрешив текущий
+  SSH-порт, чтобы не заблокировать себе доступ; запускает
+  `install/ttx-install.sh`; раскладывает `trusttunnel.service` из шаблона;
+  берёт `/opt/trusttunnel/vpn.toml` (результат `setup_wizard`) или файл из
+  `--vpn-base-toml` как базовый конфиг; пишет логин/пароль панели в
+  `bridge.json`; гоняет `doctor` → `reconcile` → `systemctl enable --now`.
+  Идемпотентен: существующие `trusttunnel.service`/`vpn.base.toml` не
+  перезаписывает без `--force`.
+
+  **Сознательно не автоматизирует** только `setup_wizard` TrustTunnel —
+  это интерактивный мастер апстрима (домен, сертификаты, пользователи);
+  скрипт не угадывает его флаги, а останавливается с понятной инструкцией,
+  если `/opt/trusttunnel/vpn.toml` ещё не создан и `--vpn-base-toml` не
+  передан. Это тот же принцип «расширение, а не модификация/угадывание
+  чужого контракта», что и в остальном проекте (см. ARCHITECTURE.md AD-1/AD-2).
+
+- **Bare-metal, вручную по шагам:** `sudo ./install/ttx-install.sh` на самом
+  сервере (см. README §3) — ставит upstream штатными инсталляторами и
+  раскладывает обвязку в `/opt/ttx`, `/etc/ttx`; остальные шаги — руками
+  (полезно для отладки или нестандартных конфигураций).
+- **Bare-metal, удалённо, без полной автоматизации:** `./deploy/deploy.sh user@host` с клиентской
   машины — синхронизирует репозиторий по rsync и по SSH запускает
   `install/ttx-install.sh` на сервере. Секреты не копирует (см. §9) —
   их оператор заполняет на сервере вручную после деплоя (шаги печатаются
   в конце работы скрипта). Поддерживает `--dry-run`, `--skip-install`,
-  `--branch` (проверка, что локально выбрана ожидаемая ветка).
+  `--branch` (проверка, что локально выбрана ожидаемая ветка). Комбинируется
+  с bootstrap-ubuntu.sh: `./deploy/deploy.sh user@host --skip-install &&
+  ssh user@host 'cd /opt/ttx-src && sudo ./deploy/bootstrap-ubuntu.sh ...'`
+  для полностью удалённого разворачивания в одну связку команд.
 - **Docker:** `cd compose && cp .env.example .env && cp bridge.docker.json
   bridge.json && cp vpn.base.toml.example vpn.base.toml && docker compose up -d`.
 
@@ -240,6 +271,14 @@ TrustTunnel и 3x-ui плюс список используемых API-эндп
 
 ## 13. Журнал изменений
 
+- **2026-08-14** — добавлен `deploy/bootstrap-ubuntu.sh`: полное
+  автоматическое развёртывание на чистом Ubuntu-сервере от `apt-get update`
+  до включённых systemd-сервисов и e2e-smoke-теста в одну команду. Отдельно
+  автоматизирована установка `python3.11` на Ubuntu 22.04 (где системный
+  python3 — 3.10) без вмешательства в системный `/usr/bin/python3`.
+  Единственный сознательно неавтоматизированный шаг — интерактивный
+  `setup_wizard` TrustTunnel (см. §11). Также создан приватный репозиторий
+  `avarabey/CascadeVPN` на GitHub и запушена вся история.
 - **2026-08-13** — репозиторий разложен по каталогам (`bridge/`, `install/`,
   `templates/`, `systemd/`, `tests/`, `compose/`, `deploy/`) в соответствии
   со структурой, уже подразумевавшейся в `install/ttx-install.sh` и README;

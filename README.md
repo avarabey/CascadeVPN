@@ -65,6 +65,23 @@ TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокс�
 
 ## 3. Установка (bare-metal)
 
+### Быстрый старт (Ubuntu)
+
+Один скрипт делает всё, кроме мастера TrustTunnel (см. ниже, шаг 1) —
+подробности и флаги в [SPEC.md §11](SPEC.md#11-развёртывание):
+
+```bash
+git clone <этот-репозиторий> ttx && cd ttx
+cd /opt/trusttunnel 2>/dev/null || true   # если TrustTunnel ещё не ставился — пропустится
+sudo ./deploy/bootstrap-ubuntu.sh --panel-user admin --panel-pass 'S3cr3t!'
+```
+
+Если `/opt/trusttunnel/vpn.toml` ещё нет (мастер не запускали), скрипт
+остановится и попросит прогнать `setup_wizard` один раз — дальше можно
+перезапустить его же командой.
+
+### Вручную по шагам
+
 ```bash
 git clone <этот-репозиторий> ttx && cd ttx
 sudo ./install/ttx-install.sh          # ставит 3x-ui + TrustTunnel + обвязку
