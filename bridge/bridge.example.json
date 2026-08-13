@@ -1,0 +1,32 @@
+{
+  "panel": {
+    "base_url": "https://127.0.0.1:2053",
+    "base_path": "/",
+    "username": "admin",
+    "password": "CHANGE_ME",
+    "verify_tls": true
+  },
+  "ingress": {
+    "remark": "TTX-Ingress",
+    "listen": "127.0.0.1",
+    "port": 10800,
+    "protocol": "socks",
+    "udp": true,
+    "sniffing": true,
+    "manage": true
+  },
+  "trusttunnel": {
+    "base_config": "/etc/ttx/vpn.base.toml",
+    "target_config": "/opt/trusttunnel/vpn.toml",
+    "reach_host": "",
+    "service": "trusttunnel.service",
+    "binary": "/opt/trusttunnel/trusttunnel_endpoint",
+    "extended_auth": false,
+    "restart_on_change": true
+  },
+  "compat": {
+    "file": "/etc/ttx/compat.json",
+    "strict": false
+  },
+  "interval_secs": 60
+}

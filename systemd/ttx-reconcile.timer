@@ -1,0 +1,10 @@
+[Unit]
+Description=Периодический reconcile ttx-bridge (альтернатива режиму watch)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+Unit=ttx-reconcile.service
+
+[Install]
+WantedBy=timers.target

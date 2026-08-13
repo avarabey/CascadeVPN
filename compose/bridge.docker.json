@@ -1,0 +1,33 @@
+{
+  "_comment": "Вариант bridge.json для docker compose: панель и мост — разные контейнеры в общей сети ttx, поэтому base_url и reach_host указывают на алиас 'xui', а ingress слушает 0.0.0.0 (иначе TrustTunnel-контейнер не достучится до Xray в контейнере x-ui). restart_on_change=false, потому что systemctl внутри контейнера недоступен — перезапуск trusttunnel после смены конфига делайте через `docker compose restart trusttunnel`.",
+  "panel": {
+    "base_url": "http://xui:2053",
+    "base_path": "/",
+    "username": "admin",
+    "password": "CHANGE_ME",
+    "verify_tls": false
+  },
+  "ingress": {
+    "remark": "TTX-Ingress",
+    "listen": "0.0.0.0",
+    "port": 10800,
+    "protocol": "socks",
+    "udp": true,
+    "sniffing": true,
+    "manage": true
+  },
+  "trusttunnel": {
+    "base_config": "/etc/ttx/vpn.base.toml",
+    "target_config": "/opt/trusttunnel/vpn.toml",
+    "reach_host": "xui",
+    "service": "trusttunnel.service",
+    "binary": "/opt/trusttunnel/trusttunnel_endpoint",
+    "extended_auth": false,
+    "restart_on_change": false
+  },
+  "compat": {
+    "file": "/etc/ttx/compat.json",
+    "strict": false
+  },
+  "interval_secs": 60
+}

@@ -1,0 +1,15 @@
+# Разовый прогон reconcile, вызывается таймером ttx-reconcile.timer.
+# Альтернатива постоянному демону ttx-bridge.service: используйте таймер
+# вместо watch-режима, если предпочитаете штатный systemd-таймер циклу
+# внутри самого моста. Не включайте оба режима одновременно на одном сервере.
+
+[Unit]
+Description=ttx-bridge — разовый reconcile (вызывается таймером)
+After=network-online.target x-ui.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=TTX_CONFIG=/etc/ttx/bridge.json
+ExecStart=/usr/local/bin/ttx reconcile
+User=root

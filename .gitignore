@@ -1,0 +1,16 @@
+# Секреты и сгенерированные конфиги — держим в репозитории только *.example
+/compose/.env
+/compose/bridge.json
+/compose/vpn.base.toml
+/compose/certs/
+bridge.json
+vpn.base.toml
+*.ttx-bak
+
+__pycache__/
+*.pyc
+
+.DS_Store
+
+# Локальные настройки Claude Code, не часть проекта
+.claude/

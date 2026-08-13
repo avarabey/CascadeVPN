@@ -1,0 +1,58 @@
+# Docker-вариант. Образы собираются из upstream-репозиториев ПО ССЫЛКЕ,
+# исходники не форкаются и не патчатся: compose тянет их сам по тегу.
+services:
+
+  x-ui:
+    image: ghcr.io/mhsanaei/3x-ui:${XUI_TAG:-latest}
+    container_name: ttx-xui
+    restart: unless-stopped
+    environment:
+      XUI_ENABLE_FAIL2BAN: "true"
+      XUI_INIT_WEB_BASE_PATH: ${XUI_BASE_PATH:-/}
+    volumes:
+      - xui-db:/etc/x-ui
+      - xui-cert:/root/cert
+    cap_add: [NET_ADMIN, NET_RAW]
+    networks:
+      ttx: { aliases: [xui] }
+    ports:
+      - "127.0.0.1:${XUI_PANEL_PORT:-2053}:${XUI_PANEL_PORT:-2053}"
+
+  trusttunnel:
+    build:
+      # Сборка прямо из upstream-репозитория по тегу — без вендоринга кода.
+      context: https://github.com/TrustTunnel/TrustTunnel.git#${TT_TAG:-v1.0.33}
+      dockerfile: Dockerfile.prebuilt
+    container_name: ttx-endpoint
+    restart: unless-stopped
+    depends_on: [x-ui, bridge]
+    volumes:
+      - tt-conf:/opt/trusttunnel
+      - ./certs:/opt/trusttunnel/certs:ro
+    networks: [ttx]
+    ports:
+      - "443:8443"       # TCP: HTTP/1.1 и HTTP/2
+      - "443:8443/udp"   # UDP: QUIC / HTTP-3
+    cap_add: [NET_RAW]   # нужно только если включён [icmp]
+
+  bridge:
+    build: ../bridge
+    container_name: ttx-bridge
+    restart: unless-stopped
+    depends_on: [x-ui]
+    environment:
+      TTX_CONFIG: /etc/ttx/bridge.json
+    volumes:
+      - ./bridge.json:/etc/ttx/bridge.json:ro
+      - ./vpn.base.toml:/etc/ttx/vpn.base.toml:ro
+      - tt-conf:/opt/trusttunnel          # сюда мост пишет итоговый vpn.toml
+    networks: [ttx]
+
+volumes:
+  xui-db:
+  xui-cert:
+  tt-conf:
+
+networks:
+  ttx:
+    driver: bridge

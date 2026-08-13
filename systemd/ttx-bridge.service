@@ -1,0 +1,20 @@
+# Основной режим работы моста: постоянный демон (`ttx watch`), сам
+# согласовывает состояние каждые `interval_secs` секунд (см. bridge.json).
+# Включается по умолчанию: systemctl enable --now ttx-bridge
+
+[Unit]
+Description=ttx-bridge — согласование TrustTunnel и 3x-ui (watch)
+After=network-online.target x-ui.service
+Wants=network-online.target
+Requires=x-ui.service
+
+[Service]
+Type=simple
+Environment=TTX_CONFIG=/etc/ttx/bridge.json
+ExecStart=/usr/local/bin/ttx watch
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

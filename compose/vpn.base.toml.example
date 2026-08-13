@@ -1,0 +1,16 @@
+# Пример базового конфига TrustTunnel для docker-варианта.
+# Отличия от templates/vpn.base.toml.example: порты и адреса рассчитаны на
+# то, что TrustTunnel работает внутри контейнера (compose пробрасывает
+# 443 хоста -> 8443 контейнера, см. compose/docker-compose.yml).
+#
+# cp vpn.base.toml.example vpn.base.toml   # и поправьте под себя
+
+listen_address = "0.0.0.0:8443"
+allow_private_network_connections = false
+
+[tls]
+cert_path = "/opt/trusttunnel/certs/fullchain.pem"
+key_path  = "/opt/trusttunnel/certs/privkey.pem"
+
+[metrics]
+listen_address = "0.0.0.0:1987"
