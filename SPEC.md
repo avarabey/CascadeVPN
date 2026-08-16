@@ -19,8 +19,8 @@ outbound'ы (direct/WARP/VLESS-цепочки/blackhole) — без форка �
   known limitation, а не фича в разработке).
 - Поддержка версий 3x-ui/TrustTunnel вне матрицы `templates/compat.json`.
 
-**Единственный код проекта** — `bridge/ttx_bridge.py`, демон-медиатор
-("мост") на стандартной библиотеке Python 3.11+, без внешних зависимостей.
+**Единственный runtime-код проекта** — `bridge/ttx_bridge.py`, демон-медиатор
+("мост") на стандартной библиотеке Python 3.9+, без внешних зависимостей.
 Всё остальное — конфигурация, systemd-юниты, инсталлятор, тесты.
 
 ## 2. Архитектура (кратко)
@@ -52,7 +52,8 @@ CascadeVPN/
 ├── SPEC.md                   — этот файл: детальная спецификация
 ├── bridge/
 │   ├── ttx_bridge.py         — демон-мост (CLI: reconcile|watch|status|doctor)
-│   └── bridge.example.json   — образец конфига моста (→ /etc/ttx/bridge.json)
+│   ├── bridge.example.json   — образец конфига моста (→ /etc/ttx/bridge.json)
+│   └── Dockerfile            — минимальный образ bridge на Python 3.12
 ├── install/
 │   └── ttx-install.sh        — ставит 3x-ui + TrustTunnel + обвязку (bare-metal)
 ├── templates/
@@ -64,12 +65,17 @@ CascadeVPN/
 │   ├── ttx-reconcile.service  — разовый reconcile
 │   └── ttx-reconcile.timer    — таймер-альтернатива watch-режиму
 ├── tests/
-│   └── e2e-smoke.sh           — сквозная проверка цепочки (устанавливается в /opt/ttx/tests)
+│   ├── check.sh               — локальная проверка синтаксиса, JSON и unit-тестов
+│   ├── test_bridge.py         — unit-тесты рендера, ownership и защиты от петель
+│   └── e2e-smoke.sh           — сквозная проверка на установленном сервере
 ├── compose/
 │   ├── docker-compose.yml     — x-ui + trusttunnel (build из upstream по тегу) + bridge
-│   ├── .env.example           — XUI_TAG, TT_TAG, XUI_BASE_PATH, XUI_PANEL_PORT
+│   ├── .env.example           — XUI_TAG, TT_VERSION, XUI_BASE_PATH, XUI_PANEL_PORT
 │   ├── bridge.docker.json     — образец bridge.json под docker-сеть
-│   └── vpn.base.toml.example  — образец базового конфига под контейнер (порт 8443)
+│   ├── vpn.base.toml.example  — образец базового конфига под контейнер (порт 8443)
+│   ├── credentials.toml.example — пример пользователей TrustTunnel
+│   ├── hosts.toml.example       — пример TLS-хоста TrustTunnel
+│   └── rules.toml.example       — пример файла правил TrustTunnel
 └── deploy/
     ├── deploy.sh               — rsync+ssh деплой репозитория на сервер + install
     └── bootstrap-ubuntu.sh     — полное автоматическое развёртывание НА сервере
@@ -91,8 +97,9 @@ CascadeVPN/
 |---|---|---|---|
 | `panel.base_url` | str | `http://127.0.0.1:2053` | адрес панели 3x-ui |
 | `panel.base_path` | str | `/` | базовый путь панели, если сменён |
-| `panel.username` | str | **обязателен** | логин панели |
-| `panel.password` | str | **обязателен** | пароль панели |
+| `panel.api_token` | str | `""` | Bearer token панели; рекомендуемый машинный способ аутентификации |
+| `panel.username` | str | `""` | логин панели; обязателен вместе с password, если api_token пуст |
+| `panel.password` | str | `""` | пароль панели; обязателен вместе с username, если api_token пуст |
 | `panel.verify_tls` | bool | `true` | проверять TLS-сертификат панели |
 | `ingress.remark` | str | `TTX-Ingress` | метка inbound'а, по которой мост его находит |
 | `ingress.listen` | str | `127.0.0.1` | адрес, на котором слушает ingress-inbound |
@@ -119,8 +126,9 @@ CascadeVPN/
 
 1. `check_compat()` — сверяет `trusttunnel_endpoint --version` с
    `compat.json`; при `strict=true` и несовпадении — выход с кодом 3.
-2. Логин в панель (`/login`), поиск ingress-inbound по `remark`, затем по
-   `port`+`protocol` (`find_ingress`).
+2. Аутентификация в панели: Bearer API token либо `/csrf-token` → `/login`
+   для cookie-сессии. Ingress ищется **только** по принадлежащему мосту
+   `remark`; совпадение чужого порта не даёт мосту права захватывать inbound.
 3. Если не найден и `manage=true` — создаётся (`/panel/api/inbounds/add`);
    если найден и разошёлся с эталоном (порт/enable/listen) — чинится
    (`/panel/api/inbounds/update/{id}`), либо только предупреждение при
@@ -144,6 +152,7 @@ CascadeVPN/
 ```
 ttx reconcile [--dry-run] [-v]   # один цикл согласования; --dry-run печатает
                                    бы-записанный конфиг, ничего не меняя
+ttx reconcile --no-restart       # записать без systemctl restart; для ExecStartPre
 ttx watch     [--dry-run] [-v]   # цикл reconcile каждые interval_secs (сервис по умолчанию)
 ttx status                        # текущее состояние ingress + куда указывает vpn.toml
 ttx doctor                        # предполётные проверки (см. ниже)
@@ -163,7 +172,9 @@ ttx doctor                        # предполётные проверки (�
   пользы.
 - **`trusttunnel.service.d/10-ttx-overlay.conf`** — не альтернатива, а
   дополнение к любому из двух режимов: гарантирует свежий `vpn.toml`
-  именно в момент (пере)запуска TrustTunnel через `ExecStartPre=ttx reconcile`.
+  именно в момент (пере)запуска TrustTunnel через
+  `ExecStartPre=ttx reconcile --no-restart`. Флаг исключает рекурсивный restart
+  того же юнита из его pre-start hook.
 
 ## 8. Docker-вариант — отличия от bare-metal
 
@@ -173,6 +184,9 @@ ttx doctor                        # предполётные проверки (�
   до ingress-inbound по сети docker, а не по `127.0.0.1`.
 - `ingress.listen=0.0.0.0` внутри контейнера x-ui (иначе Xray слушал бы
   loopback, недоступный извне контейнера).
+- Общий named volume монтируется в штатный upstream-путь
+  `/trusttunnel_endpoint`; итоговый `vpn.toml` пишет bridge, а
+  `credentials.toml`, `hosts.toml` и `rules.toml` подключаются read-only.
 - `trusttunnel.restart_on_change=false` — `systemctl` внутри контейнера
   недоступен; перезапуск контейнера при изменении `vpn.toml` — ручная
   операция (`docker compose restart trusttunnel`) либо задача на будущее
@@ -196,7 +210,8 @@ ttx doctor                        # предполётные проверки (�
 - **Петли трафика**: `allow_private_network_connections` обязан быть
   `false` — проверяется `ttx doctor`; `guard_loop` отдельно отказывается
   писать конфиг, если порт ingress совпал с `listen_address`.
-- **Секреты**: `bridge.json`, `vpn.base.toml`, `certs/` не должны попадать
+- **Секреты**: `bridge.json`, `vpn.base.toml`, `credentials.toml`, `hosts.toml`,
+  `rules.toml`, `certs/` не должны попадать
   в git — исключены в `.gitignore`; `deploy/deploy.sh` явно исключает их
   из синхронизации на сервер, чтобы не затирать то, что уже настроено на месте.
 - **Docker restart_on_change**: см. §8 — при отключённом рестарте изменения
@@ -204,28 +219,47 @@ ttx doctor                        # предполётные проверки (�
 
 ## 10. Совместимость версий (см. также ARCHITECTURE.md AD-4)
 
-`templates/compat.json` фиксирует `min_version`/`tested_version` для
-TrustTunnel и 3x-ui плюс список используемых API-эндпоинтов/фич. Клиент
-панели читает только нужные ключи JSON-ответов, неизвестные поля будущих
-версий игнорируются. При `compat.strict=true` несовпадение версии
-останавливает `reconcile` до вмешательства оператора.
+`templates/compat.json` фиксирует `min_version`, `reference_version` и список
+используемых API-эндпоинтов/фич. `reference_version` означает версию, по
+официальной документации которой сверялся контракт, а не обещание полного
+e2e-теста. Сейчас бинарная проверка версии реализована для TrustTunnel;
+совместимость 3x-ui проверяется фактическими вызовами `/csrf-token`,
+`/login` и `/panel/api/inbounds/*`. Клиент поддерживает Bearer API token и
+cookie-сессию с CSRF, а также принимает как JSON-строки старого API, так и
+вложенные JSON-объекты нового. При `compat.strict=true` несовпадение версии
+TrustTunnel останавливает `reconcile`.
+
+Внешние контракты, сверенные 2026-08-16:
+
+- [TrustTunnel configuration](https://github.com/TrustTunnel/TrustTunnel/blob/master/CONFIGURATION.md)
+  — `forward_protocol.socks5`, структура `vpn.toml`, metrics и отдельные
+  `hosts.toml`/`credentials.toml`/`rules.toml`.
+- [TrustTunnel Dockerfile.prebuilt](https://github.com/TrustTunnel/TrustTunnel/blob/master/Dockerfile.prebuilt)
+  и [docker-entrypoint.sh](https://github.com/TrustTunnel/TrustTunnel/blob/master/docker-entrypoint.sh)
+  — рабочий каталог `/trusttunnel_endpoint` и обязательные файлы контейнера.
+- [3x-ui API authentication](https://github.com/MHSanaei/3x-ui/blob/main/docs/content/docs/en/reference/api/authentication.mdx)
+  — Bearer token и cookie-сессия с CSRF.
+- [3x-ui inbounds API](https://github.com/MHSanaei/3x-ui/blob/main/docs/content/docs/en/reference/api/inbounds.mdx)
+  — list/add/update endpoints и формат полей inbound.
 
 ## 11. Развёртывание
 
 - **Bare-metal, полностью автоматически (Ubuntu):**
-  `sudo ./deploy/bootstrap-ubuntu.sh --panel-user admin --panel-pass '...'`
+  `sudo ./deploy/bootstrap-ubuntu.sh`
   на самом сервере. Делает всё от `apt-get update` до включённых
   `x-ui`/`trusttunnel`/`ttx-bridge` и `tests/e2e-smoke.sh` в конце:
   проверяет, что это Ubuntu+systemd+root; ставит apt-зависимости; при
-  системном python3 < 3.11 ставит отдельно `python3.11` (штатный
+  системном python3 < 3.9 ставит отдельно `python3.11` (штатный
   `/usr/bin/python3` не трогает, вместо этого переключает на него обёртку
   `/usr/local/bin/ttx`); опционально (`--configure-firewall`, по умолчанию
   выключено) открывает 443/tcp+udp в ufw, предварительно разрешив текущий
   SSH-порт, чтобы не заблокировать себе доступ; запускает
   `install/ttx-install.sh`; раскладывает `trusttunnel.service` из шаблона;
   берёт `/opt/trusttunnel/vpn.toml` (результат `setup_wizard`) или файл из
-  `--vpn-base-toml` как базовый конфиг; пишет логин/пароль панели в
-  `bridge.json`; гоняет `doctor` → `reconcile` → `systemctl enable --now`.
+  `--vpn-base-toml` как базовый конфиг; для новой установки читает API token,
+  порт и web path 3x-ui из root-only `/etc/x-ui/install-result.env`, а для
+  существующей принимает `--panel-api-token` либо логин+пароль; затем пишет
+  `bridge.json` и гоняет `doctor` → `reconcile` → `systemctl enable --now`.
   Идемпотентен: существующие `trusttunnel.service`/`vpn.base.toml` не
   перезаписывает без `--force`.
 
@@ -247,10 +281,12 @@ TrustTunnel и 3x-ui плюс список используемых API-эндп
   в конце работы скрипта). Поддерживает `--dry-run`, `--skip-install`,
   `--branch` (проверка, что локально выбрана ожидаемая ветка). Комбинируется
   с bootstrap-ubuntu.sh: `./deploy/deploy.sh user@host --skip-install &&
-  ssh user@host 'cd /opt/ttx-src && sudo ./deploy/bootstrap-ubuntu.sh ...'`
+  ssh user@host 'cd ttx-src && sudo ./deploy/bootstrap-ubuntu.sh ...'`
   для полностью удалённого разворачивания в одну связку команд.
-- **Docker:** `cd compose && cp .env.example .env && cp bridge.docker.json
-  bridge.json && cp vpn.base.toml.example vpn.base.toml && docker compose up -d`.
+- **Docker:** скопировать все `*.example` в файлы без `.example`, заменить
+  домен/пароли и положить сертификаты в `compose/certs/`; сначала поднять
+  только `x-ui`, создать в панели API token, вписать его в `bridge.json`, затем
+  выполнить `docker compose up -d --build`. Полная последовательность есть в README.
 
 ## 12. Дальнейшее развитие (не входит в текущую поставку)
 
@@ -269,13 +305,43 @@ TrustTunnel и 3x-ui плюс список используемых API-эндп
   оператора; если появится безопасный способ (например, интеграция с
   секрет-менеджером), стоит добавить отдельный `deploy/push-secrets.sh`.
 
-## 13. Журнал изменений
+## 13. Критерии приёмки
+
+Локальная приёмка (`./tests/check.sh`):
+
+1. Все shell-скрипты проходят `bash -n`.
+2. Все JSON-шаблоны проходят стандартный JSON-парсер Python.
+3. `ttx_bridge.py` компилируется и unit-тесты подтверждают идемпотентный
+   рендер, отказ от захвата чужого inbound и защиту от петли портов.
+4. При наличии Docker выполняется `docker compose config`.
+
+Серверная приёмка (`sudo /opt/ttx/tests/e2e-smoke.sh`):
+
+1. Xray слушает настроенный ingress-порт.
+2. HTTP-запрос через SOCKS5 ingress получает внешний IP.
+3. Итоговый `vpn.toml` содержит управляемый SOCKS5 upstream.
+4. Сервисы `x-ui` и `trusttunnel` активны.
+5. UDP/QUIC проверяется отдельно с клиента, поскольку локальный SOCKS-тест
+   не доказывает весь путь UDP ASSOCIATE через TrustTunnel.
+
+Полный e2e требует Linux-сервера, домена/сертификата и реального клиента;
+локальная macOS-проверка не подменяет этот этап.
+
+## 14. Журнал изменений
+
+- **2026-08-16** — завершён аудит поставки: добавлены Bearer API token и CSRF
+  для актуального API 3x-ui, безопасное владение inbound только по `remark`,
+  сохранение счётчиков при update; исправлены официальные ключи TrustTunnel
+  (`metrics.address`, отдельный `hosts.toml`); Docker Compose переведён на
+  штатный `/trusttunnel_endpoint`, добавлены Dockerfile bridge и примеры
+  `credentials/hosts/rules`; bootstrap читает сгенерированный API token 3x-ui;
+  добавлены unit-тесты и единый `tests/check.sh`.
 
 - **2026-08-14** — добавлен `deploy/bootstrap-ubuntu.sh`: полное
   автоматическое развёртывание на чистом Ubuntu-сервере от `apt-get update`
   до включённых systemd-сервисов и e2e-smoke-теста в одну команду. Отдельно
-  автоматизирована установка `python3.11` на Ubuntu 22.04 (где системный
-  python3 — 3.10) без вмешательства в системный `/usr/bin/python3`.
+  автоматизирована установка совместимого Python без вмешательства в
+  системный `/usr/bin/python3`.
   Единственный сознательно неавтоматизированный шаг — интерактивный
   `setup_wizard` TrustTunnel (см. §11). Также создан приватный репозиторий
   `avarabey/CascadeVPN` на GitHub и запушена вся история.

@@ -3,9 +3,9 @@
 set -uo pipefail
 
 CFG="${TTX_CONFIG:-/etc/ttx/bridge.json}"
-INGRESS_PORT=$(python3 -c "import json,sys;print(json.load(open('$CFG'))['ingress']['port'])")
-INGRESS_HOST=$(python3 -c "import json,sys;print(json.load(open('$CFG'))['ingress']['listen'])")
-TT_CFG=$(python3 -c "import json,sys;print(json.load(open('$CFG'))['trusttunnel']['target_config'])")
+INGRESS_PORT=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["ingress"]["port"])' "$CFG")
+INGRESS_HOST=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["ingress"]["listen"])' "$CFG")
+TT_CFG=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["trusttunnel"]["target_config"])' "$CFG")
 fail=0
 ok()   { printf '\033[32m[OK ]\033[0m %s\n' "$*"; }
 bad()  { printf '\033[31m[FAIL]\033[0m %s\n' "$*"; fail=1; }
@@ -36,7 +36,7 @@ if command -v nc >/dev/null; then
 fi
 
 # 5. Сервисы живы
-for svc in x-ui trusttunnel; do
+for svc in x-ui trusttunnel ttx-bridge; do
   systemctl is-active --quiet "$svc" && ok "сервис $svc активен" || bad "сервис $svc не запущен"
 done
 

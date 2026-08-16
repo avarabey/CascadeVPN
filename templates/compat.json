@@ -2,15 +2,16 @@
   "_comment": "Матрица совместимости версий upstream. ttx doctor/reconcile сверяют с ней фактические версии перед тем, как что-то менять.",
   "trusttunnel": {
     "min_version": "1.0.30",
-    "tested_version": "1.0.33",
+    "reference_version": "1.0.33",
     "required_features": [
       "forward_protocol.socks5"
     ]
   },
   "3x-ui": {
     "min_version": "2.3.0",
-    "tested_version": "2.4.8",
+    "reference_version": "3.6.0",
     "required_endpoints": [
+      "/csrf-token",
       "/login",
       "/panel/api/inbounds/list",
       "/panel/api/inbounds/add",

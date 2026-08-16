@@ -60,8 +60,8 @@ TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокс�
 4. **Docker** — `build.context` указывает на upstream-репозиторий по git-тегу,
    поэтому форк не нужен.
 
-Обновление любого из проектов не ломает обвязку: она проверяет версии по
-`compat.json` и предупреждает (или отказывается работать при `strict: true`).
+Совместимость отслеживается через `compat.json`, функциональные проверки API и
+`ttx doctor`. Обновления upstream всё равно сначала проверяйте на стенде.
 
 ## 3. Установка (bare-metal)
 
@@ -71,19 +71,21 @@ TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокс�
 подробности и флаги в [SPEC.md §11](SPEC.md#11-развёртывание):
 
 ```bash
-git clone <этот-репозиторий> ttx && cd ttx
-cd /opt/trusttunnel 2>/dev/null || true   # если TrustTunnel ещё не ставился — пропустится
-sudo ./deploy/bootstrap-ubuntu.sh --panel-user admin --panel-pass 'S3cr3t!'
+git clone https://github.com/avarabey/CascadeVPN.git ttx
+cd ttx
+sudo ./deploy/bootstrap-ubuntu.sh
 ```
 
 Если `/opt/trusttunnel/vpn.toml` ещё нет (мастер не запускали), скрипт
 остановится и попросит прогнать `setup_wizard` один раз — дальше можно
-перезапустить его же командой.
+перезапустить его же командой. При новой установке 3x-ui bootstrap берёт
+сгенерированный API token из `/etc/x-ui/install-result.env`; для уже
+существующей панели передайте `--panel-api-token` или логин с паролем.
 
 ### Вручную по шагам
 
 ```bash
-git clone <этот-репозиторий> ttx && cd ttx
+git clone https://github.com/avarabey/CascadeVPN.git ttx && cd ttx
 sudo ./install/ttx-install.sh          # ставит 3x-ui + TrustTunnel + обвязку
 
 # 1) мастер TrustTunnel: сертификаты, пользователи, listen_address
@@ -94,7 +96,7 @@ sudo cp trusttunnel.service.template /etc/systemd/system/trusttunnel.service
 sudo cp /opt/trusttunnel/vpn.toml /etc/ttx/vpn.base.toml
 
 # 3) вписать доступы к панели
-sudo nano /etc/ttx/bridge.json         # username / password / base_url / base_path
+sudo nano /etc/ttx/bridge.json         # api_token (рекомендуется) либо username/password
 
 # 4) проверить и согласовать
 sudo ttx doctor
@@ -120,10 +122,20 @@ cd /opt/trusttunnel
 ```bash
 cd compose
 cp .env.example .env
-cp bridge.docker.json bridge.json          # впишите панель: username/password
-cp vpn.base.toml.example vpn.base.toml     # поправьте под себя (сертификаты и т.п.)
+cp bridge.docker.json bridge.json          # впишите API token либо username/password панели
+cp vpn.base.toml.example vpn.base.toml
+cp credentials.toml.example credentials.toml
+cp hosts.toml.example hosts.toml
+cp rules.toml.example rules.toml
 mkdir -p certs                              # положите сюда fullchain.pem/privkey.pem
-docker compose up -d
+# замените CHANGE_ME и vpn.example.com во вновь созданных файлах
+
+# сначала поднимите только панель, войдите через SSH-туннель на 127.0.0.1:2053,
+# смените начальные реквизиты и создайте API token в Settings → Security
+docker compose up -d x-ui
+nano bridge.json                           # вставьте API token
+
+docker compose up -d --build
 ```
 
 ## 4. Эксплуатация
@@ -147,7 +159,7 @@ journalctl -u ttx-bridge -f
 |---|---|---|
 | 443/tcp + 443/udp | TrustTunnel endpoint | публичный |
 | 10800/tcp | Xray inbound TTX-Ingress | **только loopback** |
-| 2053 (или ваш) | панель 3x-ui | loopback + SSH-туннель |
+| 2053 (или сгенерированный) | панель 3x-ui | рекомендуется loopback + SSH-туннель |
 | 1987 | метрики TrustTunnel | loopback |
 
 Прочие inbound'ы 3x-ui (VLESS/Reality и т. п.) продолжают работать на своих

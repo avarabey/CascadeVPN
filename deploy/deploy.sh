@@ -9,7 +9,7 @@
 # отдельный ручной шаг (см. вывод скрипта в конце) либо задача №1 в TODO.
 #
 # Использование:
-#   ./deploy/deploy.sh user@host [--branch main] [--remote-dir /opt/ttx-src]
+#   ./deploy/deploy.sh user@host [--branch main] [--remote-dir ttx-src]
 #                                 [--skip-install] [--dry-run]
 #
 # Требования на клиенте: ssh, rsync, (опционально) git — для проверки ветки.
@@ -24,7 +24,7 @@ usage() {
 Опции:
   --branch <name>       требовать, чтобы локально была выбрана именно эта
                          git-ветка/тег перед деплоем (по умолчанию: без проверки)
-  --remote-dir <path>   куда класть исходники на сервере (по умолчанию: /opt/ttx-src)
+  --remote-dir <path>   куда класть исходники на сервере (по умолчанию: ttx-src в home)
   --skip-install        только синхронизировать файлы, install/ttx-install.sh не запускать
   --dry-run             показать, что будет сделано (rsync --dry-run, установка не запускается)
   -h, --help             эта справка
@@ -33,7 +33,7 @@ EOF
 
 HOST=""
 BRANCH=""
-REMOTE_DIR="/opt/ttx-src"
+REMOTE_DIR="ttx-src"
 SKIP_INSTALL=0
 DRY_RUN=0
 

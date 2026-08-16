@@ -21,13 +21,20 @@ services:
   trusttunnel:
     build:
       # Сборка прямо из upstream-репозитория по тегу — без вендоринга кода.
-      context: https://github.com/TrustTunnel/TrustTunnel.git#${TT_TAG:-v1.0.33}
+      context: https://github.com/TrustTunnel/TrustTunnel.git#v${TT_VERSION:-1.0.33}
       dockerfile: Dockerfile.prebuilt
+      args:
+        TT_VERSION: ${TT_VERSION:-1.0.33}
     container_name: ttx-endpoint
     restart: unless-stopped
-    depends_on: [x-ui, bridge]
+    depends_on:
+      bridge:
+        condition: service_healthy
     volumes:
-      - tt-conf:/opt/trusttunnel
+      - tt-conf:/trusttunnel_endpoint
+      - ./credentials.toml:/trusttunnel_endpoint/credentials.toml:ro
+      - ./hosts.toml:/trusttunnel_endpoint/hosts.toml:ro
+      - ./rules.toml:/trusttunnel_endpoint/rules.toml:ro
       - ./certs:/opt/trusttunnel/certs:ro
     networks: [ttx]
     ports:
@@ -45,8 +52,14 @@ services:
     volumes:
       - ./bridge.json:/etc/ttx/bridge.json:ro
       - ./vpn.base.toml:/etc/ttx/vpn.base.toml:ro
-      - tt-conf:/opt/trusttunnel          # сюда мост пишет итоговый vpn.toml
+      - ../templates/compat.json:/etc/ttx/compat.json:ro
+      - tt-conf:/trusttunnel_endpoint     # сюда мост пишет итоговый vpn.toml
     networks: [ttx]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/trusttunnel_endpoint/vpn.toml"]
+      interval: 5s
+      timeout: 2s
+      retries: 24
 
 volumes:
   xui-db:

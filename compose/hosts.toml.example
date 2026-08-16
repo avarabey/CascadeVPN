@@ -1,0 +1,5 @@
+# Пример TLS-хоста TrustTunnel. Сохраните как hosts.toml и укажите свой домен.
+[[main_hosts]]
+hostname = "vpn.example.com"
+cert_chain_path = "/opt/trusttunnel/certs/fullchain.pem"
+private_key_path = "/opt/trusttunnel/certs/privkey.pem"

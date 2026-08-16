@@ -18,17 +18,14 @@ listen_address = "0.0.0.0:443"
 # loopback-сервисов сервера — в том числе до панели 3x-ui. `ttx doctor`
 # проверяет именно это значение.
 allow_private_network_connections = false
+credentials_file = "credentials.toml"
+rules_file = "rules.toml"
 
-[tls]
-cert_path = "/opt/trusttunnel/certs/fullchain.pem"
-key_path  = "/opt/trusttunnel/certs/privkey.pem"
-
-[icmp]
-# Раскомментируйте, если нужны ICMP-пинги напрямую с сервера.
+# Чтобы включить ICMP-пинги напрямую с сервера, добавьте таблицу [icmp]
+# по официальной документации TrustTunnel.
 # Внимание: SOCKS5 не переносит ICMP, поэтому такой трафик пойдёт в обход
-# routing 3x-ui напрямую с сервера. Оставьте выключенным, если нужна строгая
-# политика «весь трафик через панель».
-# enabled = true
+# routing 3x-ui. По умолчанию таблица намеренно отсутствует.
 
 [metrics]
-listen_address = "127.0.0.1:1987"
+address = "127.0.0.1:1987"
+request_timeout_secs = 3

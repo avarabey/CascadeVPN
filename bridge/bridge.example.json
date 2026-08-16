@@ -1,7 +1,8 @@
 {
   "panel": {
-    "base_url": "https://127.0.0.1:2053",
+    "base_url": "http://127.0.0.1:2053",
     "base_path": "/",
+    "api_token": "",
     "username": "admin",
     "password": "CHANGE_ME",
     "verify_tls": true

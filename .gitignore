@@ -2,9 +2,16 @@
 /compose/.env
 /compose/bridge.json
 /compose/vpn.base.toml
+/compose/credentials.toml
+/compose/hosts.toml
+/compose/rules.toml
 /compose/certs/
 bridge.json
 vpn.base.toml
+credentials.toml
+hosts.toml
+rules.toml
+certs/
 *.ttx-bak
 
 __pycache__/

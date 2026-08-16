@@ -7,10 +7,9 @@
 
 listen_address = "0.0.0.0:8443"
 allow_private_network_connections = false
-
-[tls]
-cert_path = "/opt/trusttunnel/certs/fullchain.pem"
-key_path  = "/opt/trusttunnel/certs/privkey.pem"
+credentials_file = "credentials.toml"
+rules_file = "rules.toml"
 
 [metrics]
-listen_address = "0.0.0.0:1987"
+address = "0.0.0.0:1987"
+request_timeout_secs = 3

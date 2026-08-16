@@ -17,7 +17,7 @@ ttx-bridge — связующий слой между TrustTunnel endpoint и 3x
   4. Если результат отличается от текущего — атомарно записывает и
      перезапускает сервис TrustTunnel.
 
-Зависимости: только стандартная библиотека Python 3.11+.
+Зависимости: только стандартная библиотека Python 3.9+.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ import urllib.parse
 import urllib.request
 from http.cookiejar import CookieJar
 from pathlib import Path
+from typing import Optional
 
 LOG = logging.getLogger("ttx-bridge")
 
@@ -55,9 +56,14 @@ class Config:
         p = raw.get("panel", {})
         self.panel_url: str = p.get("base_url", "http://127.0.0.1:2053").rstrip("/")
         self.panel_path: str = "/" + p.get("base_path", "/").strip("/")
-        self.panel_user: str = p["username"]
-        self.panel_pass: str = p["password"]
+        self.panel_user: str = p.get("username", "")
+        self.panel_pass: str = p.get("password", "")
+        self.panel_api_token: str = p.get("api_token", "")
         self.panel_verify_tls: bool = bool(p.get("verify_tls", True))
+
+        if not self.panel_api_token and not (self.panel_user and self.panel_pass):
+            raise ValueError(
+                "panel: задайте api_token либо одновременно username и password")
 
         i = raw.get("ingress", {})
         self.ing_remark: str = i.get("remark", "TTX-Ingress")
@@ -83,9 +89,20 @@ class Config:
 
         self.interval: int = int(raw.get("interval_secs", 60))
 
+        if not 1 <= self.ing_port <= 65535:
+            raise ValueError("ingress.port должен быть в диапазоне 1..65535")
+        if self.ing_protocol not in ("socks", "mixed"):
+            raise ValueError("ingress.protocol должен быть socks или mixed")
+        if self.interval < 1:
+            raise ValueError("interval_secs должен быть положительным")
+        if self.tt_base.resolve() == self.tt_target.resolve():
+            raise ValueError("base_config и target_config должны быть разными файлами")
+
     @property
     def socks_address(self) -> str:
         host = self.tt_reach_host or self.ing_listen
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
         return f"{host}:{self.ing_port}"
 
     @staticmethod
@@ -114,6 +131,7 @@ class PanelClient:
             urllib.request.HTTPSHandler(context=ctx),
         )
         self._logged_in = False
+        self._csrf_token = ""
 
     # -- низкий уровень ----------------------------------------------------- #
 
@@ -121,9 +139,16 @@ class PanelClient:
         base = self.cfg.panel_path.rstrip("/")
         return f"{self.cfg.panel_url}{base}/{path.lstrip('/')}"
 
-    def _request(self, path: str, data: dict | None = None, form: bool = False) -> dict:
+    def _request(self, path: str, data: Optional[dict] = None, form: bool = False) -> dict:
         url = self._url(path)
-        body, headers = None, {"Accept": "application/json"}
+        body, headers = None, {
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        if self.cfg.panel_api_token:
+            headers["Authorization"] = f"Bearer {self.cfg.panel_api_token}"
+        elif self._csrf_token:
+            headers["X-CSRF-Token"] = self._csrf_token
         if data is not None:
             if form:
                 body = urllib.parse.urlencode(data).encode()
@@ -147,7 +172,27 @@ class PanelClient:
 
     # -- операции ----------------------------------------------------------- #
 
+    def fetch_csrf_token(self) -> None:
+        """Получает CSRF-токен новых 3x-ui; старые версии могут не иметь endpoint."""
+        try:
+            res = self._request("/csrf-token")
+        except PanelError as exc:
+            if "HTTP 404" in str(exc):
+                LOG.debug("панель: /csrf-token отсутствует, используется legacy login")
+                return
+            raise
+        token = res.get("obj")
+        if isinstance(token, str) and token:
+            self._csrf_token = token
+            return
+        raise PanelError("csrf-token: панель не вернула токен")
+
     def login(self) -> None:
+        if self.cfg.panel_api_token:
+            self._logged_in = True
+            LOG.debug("панель: используется Bearer API token")
+            return
+        self.fetch_csrf_token()
         res = self._request("/login",
                             {"username": self.cfg.panel_user,
                              "password": self.cfg.panel_pass},
@@ -215,15 +260,28 @@ def build_ingress_payload(cfg: Config) -> dict:
     }
 
 
-def find_ingress(inbounds: list[dict], cfg: Config) -> dict | None:
+def find_ingress(inbounds: list[dict], cfg: Config) -> Optional[dict]:
     for ib in inbounds:
         if ib.get("remark") == cfg.ing_remark:
             return ib
-    for ib in inbounds:
-        if int(ib.get("port", 0)) == cfg.ing_port and \
-           ib.get("protocol") in ("socks", "mixed", "http"):
-            return ib
     return None
+
+
+def json_field(value: object) -> object:
+    """Нормализует поля 3x-ui: старые версии возвращают JSON-строку, новые — объект."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return value
+
+
+def contains_fields(actual: object, expected: object) -> bool:
+    """Сравнивает только поля, которыми владеет мост, игнорируя новые defaults API."""
+    if not isinstance(actual, dict) or not isinstance(expected, dict):
+        return actual == expected
+    return all(key in actual and actual[key] == value for key, value in expected.items())
 
 
 def reconcile_ingress(panel: PanelClient, cfg: Config, dry_run: bool) -> dict:
@@ -248,10 +306,22 @@ def reconcile_ingress(panel: PanelClient, cfg: Config, dry_run: bool) -> dict:
         drift.append("enable false→true")
     if existing.get("listen", "") != cfg.ing_listen:
         drift.append(f"listen '{existing.get('listen')}'→'{cfg.ing_listen}'")
+    if existing.get("protocol") != cfg.ing_protocol:
+        drift.append(f"protocol '{existing.get('protocol')}'→'{cfg.ing_protocol}'")
+    if not contains_fields(json_field(existing.get("settings")),
+                           json_field(payload["settings"])):
+        drift.append("settings")
+    if not contains_fields(json_field(existing.get("sniffing")),
+                           json_field(payload["sniffing"])):
+        drift.append("sniffing")
 
     if drift and cfg.ing_manage:
         LOG.warning("ingress разошёлся с эталоном (%s) — исправляю", ", ".join(drift))
         if not dry_run:
+            # Не обнуляем накопленные счётчики при конфигурационном обновлении.
+            for key in ("up", "down", "total", "expiryTime"):
+                if key in existing:
+                    payload[key] = existing[key]
             return panel.update_inbound(int(existing["id"]), payload)
     elif drift:
         LOG.warning("ingress разошёлся с эталоном (%s), manage=false — не трогаю",
@@ -355,8 +425,11 @@ def check_compat(cfg: Config) -> list[str]:
 
     min_tt = parse_version(compat.get("trusttunnel", {}).get("min_version", "0.0.0"))
     try:
-        out = subprocess.run([cfg.tt_binary, "--version"],
-                             capture_output=True, text=True, timeout=15).stdout
+        if not cfg.tt_binary:
+            return problems
+        proc = subprocess.run([cfg.tt_binary, "--version"],
+                              capture_output=True, text=True, timeout=15)
+        out = f"{proc.stdout}\n{proc.stderr}"
         have = parse_version(out)
         if have < min_tt:
             problems.append(
@@ -371,7 +444,7 @@ def check_compat(cfg: Config) -> list[str]:
 # Команды
 # --------------------------------------------------------------------------- #
 
-def cmd_reconcile(cfg: Config, dry_run: bool) -> int:
+def cmd_reconcile(cfg: Config, dry_run: bool, restart: bool = True) -> int:
     for problem in check_compat(cfg):
         if cfg.compat_strict:
             LOG.error("совместимость: %s", problem)
@@ -385,7 +458,10 @@ def cmd_reconcile(cfg: Config, dry_run: bool) -> int:
     rendered = render_vpn_config(cfg)
     guard_loop(cfg, rendered)
     if write_if_changed(cfg.tt_target, rendered, dry_run):
-        restart_trusttunnel(cfg, dry_run)
+        if restart:
+            restart_trusttunnel(cfg, dry_run)
+        else:
+            LOG.info("--no-restart: перезапуск TrustTunnel пропущен")
     else:
         LOG.info("изменений нет — состояние согласовано")
     return 0
@@ -411,7 +487,8 @@ def cmd_doctor(cfg: Config) -> int:
 
     checks.append(("базовый конфиг TT существует", cfg.tt_base.exists(), str(cfg.tt_base)))
     try:
-        PanelClient(cfg).login()
+        panel = PanelClient(cfg)
+        panel.list_inbounds()
         checks.append(("вход в панель 3x-ui", True, cfg.panel_url))
     except PanelError as exc:
         checks.append(("вход в панель 3x-ui", False, str(exc)))
@@ -432,6 +509,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("command", choices=["reconcile", "watch", "status", "doctor"])
     ap.add_argument("-c", "--config", default=os.environ.get("TTX_CONFIG", DEFAULT_CONFIG))
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-restart", action="store_true",
+                    help="записать конфиг без рестарта TrustTunnel (для ExecStartPre)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -440,7 +519,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config.load(args.config)
 
     if args.command == "reconcile":
-        return cmd_reconcile(cfg, args.dry_run)
+        return cmd_reconcile(cfg, args.dry_run, restart=not args.no_restart)
     if args.command == "status":
         return cmd_status(cfg)
     if args.command == "doctor":
@@ -449,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
     LOG.info("watch: интервал %d с", cfg.interval)
     while True:
         try:
-            cmd_reconcile(cfg, args.dry_run)
+            cmd_reconcile(cfg, args.dry_run, restart=not args.no_restart)
         except (PanelError, OSError, subprocess.SubprocessError) as exc:
             LOG.error("цикл согласования не удался: %s", exc)
         time.sleep(cfg.interval)

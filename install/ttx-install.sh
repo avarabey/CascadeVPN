@@ -14,15 +14,17 @@ log() { printf '\033[1;36m[ttx]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[ttx] %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "запускать от root"
-command -v python3 >/dev/null || die "нужен python3 >= 3.11"
+command -v python3 >/dev/null || die "нужен python3 >= 3.9"
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
+  || die "нужен python3 >= 3.9"
 
 step_xui() {
   if command -v x-ui >/dev/null; then log "3x-ui уже установлен — пропускаю"; return; fi
   log "устанавливаю 3x-ui (upstream installer, без модификаций)"
   if [[ -n "$XUI_VERSION" ]]; then
-    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) "$XUI_VERSION"
+    bash <(curl -fsSL https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) "$XUI_VERSION"
   else
-    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+    bash <(curl -fsSL https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
   fi
 }
 
@@ -51,17 +53,18 @@ step_overlay() {
 
   [[ -f "$TTX_ETC/bridge.json" ]] || {
     install -m 0600 "$SRC/bridge/bridge.example.json" "$TTX_ETC/bridge.json"
-    log "создан $TTX_ETC/bridge.json — впишите логин/пароль панели"
+    log "создан $TTX_ETC/bridge.json — впишите API token или логин/пароль панели"
   }
 
   # Базовый конфиг: если оператор уже прогнал setup_wizard, забираем его вывод.
   if [[ ! -f "$TTX_ETC/vpn.base.toml" ]]; then
     if [[ -f "$TT_DIR/vpn.toml" ]]; then
-      cp "$TT_DIR/vpn.toml" "$TTX_ETC/vpn.base.toml"
+      install -m 0600 "$TT_DIR/vpn.toml" "$TTX_ETC/vpn.base.toml"
       log "базовый конфиг взят из $TT_DIR/vpn.toml"
     else
-      cp "$SRC/templates/vpn.base.toml.example" "$TTX_ETC/vpn.base.toml"
-      log "положен пример базового конфига — отредактируйте $TTX_ETC/vpn.base.toml"
+      install -m 0600 "$SRC/templates/vpn.base.toml.example" "$TTX_ETC/vpn.base.toml.example"
+      log "vpn.toml ещё не создан; пример лежит в $TTX_ETC/vpn.base.toml.example"
+      log "сначала выполните: cd $TT_DIR && sudo ./setup_wizard"
     fi
   fi
 

@@ -3,6 +3,7 @@
   "panel": {
     "base_url": "http://xui:2053",
     "base_path": "/",
+    "api_token": "",
     "username": "admin",
     "password": "CHANGE_ME",
     "verify_tls": false
@@ -18,10 +19,10 @@
   },
   "trusttunnel": {
     "base_config": "/etc/ttx/vpn.base.toml",
-    "target_config": "/opt/trusttunnel/vpn.toml",
+    "target_config": "/trusttunnel_endpoint/vpn.toml",
     "reach_host": "xui",
     "service": "trusttunnel.service",
-    "binary": "/opt/trusttunnel/trusttunnel_endpoint",
+    "binary": "",
     "extended_auth": false,
     "restart_on_change": false
   },
@@ -29,5 +30,5 @@
     "file": "/etc/ttx/compat.json",
     "strict": false
   },
-  "interval_secs": 60
+  "interval_secs": 10
 }

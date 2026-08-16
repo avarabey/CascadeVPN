@@ -5,7 +5,7 @@
 #
 # Что делает сам:
 #   1. Проверяет, что это Ubuntu + systemd + root.
-#   2. Ставит apt-зависимости, при необходимости — python3.11 отдельным
+#   2. Ставит apt-зависимости, при необходимости — совместимый Python отдельным
 #      бинарём (штатный python3 дистрибутива не трогает).
 #   3. (опционально, только по флагу) открывает 443/tcp+udp в ufw.
 #   4. Запускает install/ttx-install.sh — он сам ставит 3x-ui и TrustTunnel
@@ -13,7 +13,7 @@
 #   5. Копирует trusttunnel.service.template в systemd, если ещё не скопирован.
 #   6. Берёт /opt/trusttunnel/vpn.toml (результат setup_wizard) как базовый
 #      конфиг обвязки — либо использует файл, переданный через --vpn-base-toml.
-#   7. Вписывает логин/пароль панели в /etc/ttx/bridge.json.
+#   7. Вписывает API token либо логин/пароль панели в /etc/ttx/bridge.json.
 #   8. Прогоняет `ttx doctor` → `ttx reconcile` и включает сервисы.
 #   9. (если не отключено) гоняет tests/e2e-smoke.sh.
 #
@@ -24,15 +24,10 @@
 #     (или на любом сервере и принесите готовый vpn.toml через
 #     --vpn-base-toml) — дальше всё остальное скрипт сделает сам.
 #
-# Использование:
-#   sudo ./deploy/bootstrap-ubuntu.sh \
-#       --panel-user admin --panel-pass 'S3cr3t!' \
-#       [--vpn-base-toml /root/vpn.toml] [опции]
-#
-# Без --panel-user/--panel-pass скрипт спросит их в терминале (пароль без
-# эха); в неинтерактивном режиме (нет TTY) без этих флагов — упадёт с ошибкой.
-# Пароль можно передать и через переменные окружения TTX_PANEL_USER/TTX_PANEL_PASS,
-# чтобы не светить его в истории команд/списке процессов.
+# Использование: sudo ./deploy/bootstrap-ubuntu.sh [--vpn-base-toml FILE]
+# Для новой 3x-ui учётные данные читаются из /etc/x-ui/install-result.env.
+# Для существующей панели рекомендуется TTX_PANEL_API_TOKEN или флаг
+# --panel-api-token; логин/пароль оставлены как совместимый запасной вариант.
 
 set -euo pipefail
 
@@ -44,6 +39,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PANEL_USER="${TTX_PANEL_USER:-}"
 PANEL_PASS="${TTX_PANEL_PASS:-}"
+PANEL_API_TOKEN="${TTX_PANEL_API_TOKEN:-}"
 PANEL_BASE_URL=""
 PANEL_BASE_PATH=""
 INGRESS_PORT=""
@@ -60,7 +56,8 @@ usage() {
   cat <<'EOF'
 Использование: sudo ./deploy/bootstrap-ubuntu.sh [опции]
 
-Учётные данные панели (обязательны — флагом, env или интерактивно):
+Учётные данные панели (один из вариантов: API token либо логин+пароль):
+  --panel-api-token <token> API token 3x-ui (или env TTX_PANEL_API_TOKEN), рекомендуется
   --panel-user <user>       логин 3x-ui (или env TTX_PANEL_USER)
   --panel-pass <pass>       пароль 3x-ui (или env TTX_PANEL_PASS)
 
@@ -90,6 +87,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --panel-api-token) PANEL_API_TOKEN="${2:?}"; shift 2 ;;
     --panel-user) PANEL_USER="${2:?}"; shift 2 ;;
     --panel-pass) PANEL_PASS="${2:?}"; shift 2 ;;
     --panel-base-url) PANEL_BASE_URL="${2:?}"; shift 2 ;;
@@ -130,29 +128,11 @@ command -v systemctl >/dev/null || die "нужен systemd"
   || die "не нашёл install/ttx-install.sh рядом со скриптом — запускайте из корня репозитория ttx"
 
 # --------------------------------------------------------------------------- #
-# 2. Учётные данные панели
+# 2. Учётные данные панели проверяются после установки 3x-ui
 # --------------------------------------------------------------------------- #
 
-if [[ -z "$PANEL_USER" ]]; then
-  if [[ -t 0 ]]; then
-    read -r -p "Логин панели 3x-ui: " PANEL_USER
-  else
-    die "не задан логин панели — передайте --panel-user или TTX_PANEL_USER (нет TTY для запроса)"
-  fi
-fi
-[[ -n "$PANEL_USER" ]] || die "логин панели пустой"
-
-if [[ -z "$PANEL_PASS" ]]; then
-  if [[ -t 0 ]]; then
-    read -r -s -p "Пароль панели 3x-ui: " PANEL_PASS; echo
-  else
-    die "не задан пароль панели — передайте --panel-pass или TTX_PANEL_PASS (нет TTY для запроса)"
-  fi
-fi
-[[ -n "$PANEL_PASS" ]] || die "пароль панели пустой"
-
 # --------------------------------------------------------------------------- #
-# 3. apt-зависимости + python3 >= 3.11
+# 3. apt-зависимости + python3 >= 3.9
 # --------------------------------------------------------------------------- #
 
 log "apt-get update"
@@ -161,13 +141,13 @@ DEBIAN_FRONTEND=noninteractive apt-get update -qq
 log "устанавливаю базовые пакеты (curl, ca-certificates, python3)"
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates python3 python3-minimal >/dev/null
 
-python_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; }
+python_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; }
 
 PYBIN="/usr/bin/python3"
 if python_ok "$PYBIN"; then
-  log "системный python3 уже >= 3.11 ($("$PYBIN" --version 2>&1))"
+  log "системный python3 уже >= 3.9 ($("$PYBIN" --version 2>&1))"
 else
-  warn "системный python3 ($("$PYBIN" --version 2>&1)) старше 3.11 — нужен отдельный интерпретер для ttx"
+  warn "системный python3 ($("$PYBIN" --version 2>&1)) ниже 3.9 — нужен отдельный интерпретатор для ttx"
   if command -v python3.11 >/dev/null && python_ok "$(command -v python3.11)"; then
     PYBIN="$(command -v python3.11)"
     log "нашёл готовый $PYBIN"
@@ -190,7 +170,7 @@ else
     fi
   fi
 fi
-python_ok "$PYBIN" || die "не удалось получить рабочий python3 >= 3.11 ($PYBIN)"
+python_ok "$PYBIN" || die "не удалось получить рабочий python3 >= 3.9 ($PYBIN)"
 
 # --------------------------------------------------------------------------- #
 # 4. Firewall (по умолчанию выключено)
@@ -222,15 +202,60 @@ fi
 # --------------------------------------------------------------------------- #
 
 log "запускаю install/ttx-install.sh"
-TT_VERSION="$TT_VERSION" XUI_VERSION="$XUI_VERSION" "$REPO_ROOT/install/ttx-install.sh"
+XUI_NONINTERACTIVE=1 TT_VERSION="$TT_VERSION" XUI_VERSION="$XUI_VERSION" \
+  "$REPO_ROOT/install/ttx-install.sh"
 
 TT_DIR="${TT_DIR:-/opt/trusttunnel}"
 TTX_ETC="${TTX_ETC:-/etc/ttx}"
 
-# Перецепляем CLI-обёртку ttx на найденный python >= 3.11, если системный python3 не годится.
+# Перецепляем CLI-обёртку ttx на найденный совместимый Python, если системный не годится.
 if [[ "$PYBIN" != "/usr/bin/python3" && -f /usr/local/bin/ttx ]]; then
   sed -i "s#/usr/bin/python3#${PYBIN}#" /usr/local/bin/ttx
   log "/usr/local/bin/ttx теперь использует $PYBIN"
+fi
+
+# Официальный установщик 3x-ui
+# сохраняет случайные реквизиты в root-only dotenv-файле. Берём API token оттуда,
+# не печатая и не передавая секрет через список процессов.
+read_install_value() {
+  local key="$1" file="/etc/x-ui/install-result.env" value=""
+  [[ -r "$file" ]] || return 0
+  value="$(sed -n "s/^${key}=//p" "$file" | tail -n1)"
+  value="${value#\"}"; value="${value%\"}"
+  printf '%s' "$value"
+}
+
+if [[ -z "$PANEL_API_TOKEN" && -z "$PANEL_USER" && -z "$PANEL_PASS" ]]; then
+  PANEL_API_TOKEN="$(read_install_value XUI_API_TOKEN)"
+  PANEL_USER="$(read_install_value XUI_USERNAME)"
+  PANEL_PASS="$(read_install_value XUI_PASSWORD)"
+  [[ -n "$PANEL_API_TOKEN" ]] && log "использую API token из /etc/x-ui/install-result.env"
+fi
+
+if [[ -z "$PANEL_BASE_PATH" ]]; then
+  PANEL_BASE_PATH="$(read_install_value XUI_WEB_BASE_PATH)"
+fi
+if [[ -z "$PANEL_BASE_URL" ]]; then
+  GENERATED_PANEL_PORT="$(read_install_value XUI_PANEL_PORT)"
+  GENERATED_ACCESS_URL="$(read_install_value XUI_ACCESS_URL)"
+  if [[ "$GENERATED_ACCESS_URL" == https://* ]]; then
+    PANEL_BASE_URL="$("$PYBIN" -c \
+      'import sys; from urllib.parse import urlsplit; u=urlsplit(sys.argv[1]); print(f"{u.scheme}://{u.netloc}")' \
+      "$GENERATED_ACCESS_URL")"
+  elif [[ -n "$GENERATED_PANEL_PORT" ]]; then
+    PANEL_BASE_URL="http://127.0.0.1:${GENERATED_PANEL_PORT}"
+  fi
+fi
+
+if [[ -z "$PANEL_API_TOKEN" ]]; then
+  if [[ -z "$PANEL_USER" && -t 0 ]]; then
+    read -r -p "Логин панели 3x-ui: " PANEL_USER
+  fi
+  if [[ -z "$PANEL_PASS" && -t 0 ]]; then
+    read -r -s -p "Пароль панели 3x-ui: " PANEL_PASS; echo
+  fi
+  [[ -n "$PANEL_USER" && -n "$PANEL_PASS" ]] \
+    || die "задайте --panel-api-token либо одновременно --panel-user и --panel-pass"
 fi
 
 # --------------------------------------------------------------------------- #
@@ -270,7 +295,7 @@ fi
 # --------------------------------------------------------------------------- #
 
 log "вписываю доступы к панели в $TTX_ETC/bridge.json"
-PANEL_USER="$PANEL_USER" PANEL_PASS="$PANEL_PASS" \
+PANEL_USER="$PANEL_USER" PANEL_PASS="$PANEL_PASS" PANEL_API_TOKEN="$PANEL_API_TOKEN" \
 PANEL_BASE_URL="$PANEL_BASE_URL" PANEL_BASE_PATH="$PANEL_BASE_PATH" \
 INGRESS_PORT="$INGRESS_PORT" BRIDGE_JSON="$TTX_ETC/bridge.json" \
 "$PYBIN" - <<'PY'
@@ -281,8 +306,12 @@ with open(path, encoding="utf-8") as fh:
     cfg = json.load(fh)
 
 cfg.setdefault("panel", {})
-cfg["panel"]["username"] = os.environ["PANEL_USER"]
-cfg["panel"]["password"] = os.environ["PANEL_PASS"]
+if os.environ.get("PANEL_API_TOKEN"):
+    cfg["panel"]["api_token"] = os.environ["PANEL_API_TOKEN"]
+if os.environ.get("PANEL_USER"):
+    cfg["panel"]["username"] = os.environ["PANEL_USER"]
+if os.environ.get("PANEL_PASS"):
+    cfg["panel"]["password"] = os.environ["PANEL_PASS"]
 if os.environ.get("PANEL_BASE_URL"):
     cfg["panel"]["base_url"] = os.environ["PANEL_BASE_URL"]
 if os.environ.get("PANEL_BASE_PATH"):
