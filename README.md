@@ -1,8 +1,13 @@
-# ttx — обвязка TrustTunnel → 3x-ui
+# CascadeVPN / ffknd portal
 
-Трафик приходит на сервер по протоколу TrustTunnel (маскируется под обычный HTTPS),
-терминируется endpoint'ом и целиком передаётся в inbound Xray, которым управляет
-3x-ui. Дальше работают штатные routing-правила и outbound'ы панели.
+Текущая версия REPO: [0.2.0](REPO_VERSION.md). Полная нормативная
+конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
+[HANDOFF.md](HANDOFF.md).
+
+Production `ffknd.ru` использует Nginx `ssl_preread` на `443/tcp`: SNI
+`ffknd.ru`/`www.ffknd.ru` идёт в нейтральный портал, любой другой SNI —
+byte-for-byte в Xray VLESS Reality. TrustTunnel работает независимо на
+`8443/tcp+udp` и передаёт трафик в routing 3x-ui через SOCKS ingress.
 
 **Ни один файл исходных репозиториев не изменяется.** Проект живёт в отдельных
 каталогах (`/opt/ttx`, `/etc/ttx`) и взаимодействует с upstream только через их
@@ -10,31 +15,22 @@
 
 ---
 
-## 1. Как это работает
+## 1. Как это работает в production
 
 ```
-клиент TrustTunnel
-      │  TLS / HTTP2 / QUIC :443     (неотличимо от обычного HTTPS)
-      ▼
-┌─────────────────────────┐
-│ trusttunnel_endpoint    │  upstream-бинарь, конфиг vpn.toml
-│ [forward_protocol.socks5]  ◄── эту секцию генерирует ttx-bridge
-└──────────┬──────────────┘
-           │  SOCKS5 (TCP + UDP ASSOCIATE) на 127.0.0.1:10800
-           ▼
-┌─────────────────────────┐
-│ Xray inbound "TTX-Ingress"   протокол socks, listen 127.0.0.1
-│ (создан и поддерживается через REST API 3x-ui)
-└──────────┬──────────────┘
-           │
-           ▼   routing 3x-ui: правила, geoip/geosite, балансировщики
-   outbound: direct / WARP / VLESS-цепочка / blackhole
+Internet :443/tcp ──► Nginx stream ssl_preread
+                       ├── ffknd.ru / www.ffknd.ru
+                       │      └──► 127.0.0.1:9443 TLS
+                       │                └──► portal 127.0.0.1:8080
+                       └── default ──► Xray Reality 127.0.0.1:10443
+
+Internet :8443/tcp+udp ──► TrustTunnel ──► Xray SOCKS 127.0.0.1:10800
 ```
 
-Точка стыковки — документированный параметр TrustTunnel
-`[forward_protocol.socks5]`. Endpoint по нему отдаёт **весь** туннелированный
-TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокси и играет inbound Xray.
-Никакого перехвата трафика, iptables-магии или патчей не требуется.
+Nginx не завершает TLS на Reality-ветке и не использует PROXY protocol.
+Reality SNI — только `cloud.ru*`; домены портала для VPN-профиля запрещены.
+Reference/Compose-схема с TrustTunnel как владельцем `443/tcp+udp` сохранена
+для новых окружений, но generic installer нельзя запускать на текущем live-хосте.
 
 ## 2. Что добавляет этот проект
 
@@ -43,10 +39,28 @@ TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокс�
 | `bridge/ttx_bridge.py` | Демон согласования: держит inbound в панели и секцию `forward_protocol` в `vpn.toml` в согласованном состоянии |
 | `templates/vpn.base.toml.example` | Базовый конфиг оператора — источник правды, мост его не трогает |
 | `templates/compat.json` | Матрица совместимости версий upstream + контракт «какие таблицы конфига мы считаем своими» |
-| `systemd/trusttunnel.service.d/10-ttx-overlay.conf` | Drop-in к юниту TrustTunnel: порядок запуска и `ExecStartPre` с синхронизацией. Оригинальный юнит остаётся нетронутым |
+| `systemd/trusttunnel.service.d/10-ttx-overlay.conf` | Drop-in к юниту TrustTunnel: только порядок запуска, без изменения конфига в `ExecStartPre`. Оригинальный юнит остаётся нетронутым |
 | `install/ttx-install.sh` | Ставит оба проекта их же штатными установщиками и разворачивает обвязку поверх |
 | `compose/` | Docker-вариант: образы берутся из upstream по тегу, без вендоринга кода |
 | `tests/e2e-smoke.sh` | Сквозная проверка цепочки |
+| `portal/` | Личный портал на стандартной библиотеке Python 3.11+ и SQLite, без внешних Python-зависимостей |
+| `systemd/ffknd-portal.service` | Изолированный bare-metal сервис портала на loopback:8080 |
+| `tests/port443-smoke.sh` | Внешняя проверка обычного HTTPS и VPN CONNECT через один `443` |
+
+### Что есть в ffknd portal
+
+- статус HTTP(S)-сервисов с фоновыми проверками времени ответа;
+- локальные веб-инструменты: JSON, Base64, UUID, timestamp, URL encode/decode,
+  генератор паролей и QR-кодов;
+- блокнот, который шифруется в браузере AES-GCM и хранится только в
+  `localStorage`; открытый текст и мастер-пароль серверу не передаются;
+- RSS/Atom-лента с фоновым обновлением;
+- короткие ссылки `/s/<code>` со счётчиком переходов и локальный QR-генератор;
+- встроенные памятки по Git, Linux, Docker, HTTP и регулярным выражениям.
+
+SQLite хранит серверные сессии, настройки проверок, RSS-источники и короткие
+ссылки. Заметки в эту базу не записываются. Управление состоянием, RSS и
+короткими ссылками требует входа; публичная страница остаётся нейтральной.
 
 ### Принцип «расширение, а не модификация»
 
@@ -68,7 +82,7 @@ TCP и UDP наверх, в SOCKS5-прокси. Роль этого прокс�
 ### Быстрый старт (Ubuntu)
 
 Один скрипт делает всё, кроме мастера TrustTunnel (см. ниже, шаг 1) —
-подробности и флаги в [SPEC.md §11](SPEC.md#11-развёртывание):
+подробности и флаги в [SPEC.md §12](SPEC.md#12-развёртывание):
 
 ```bash
 git clone https://github.com/avarabey/CascadeVPN.git ttx
@@ -81,6 +95,9 @@ sudo ./deploy/bootstrap-ubuntu.sh
 перезапустить его же командой. При новой установке 3x-ui bootstrap берёт
 сгенерированный API token из `/etc/x-ui/install-result.env`; для уже
 существующей панели передайте `--panel-api-token` или логин с паролем.
+Если `/etc/ttx/portal.env` ещё не содержит хеш пароля, bootstrap установит
+портал, но оставит его выключенным; настройте хеш по шагу 5 ниже и включите
+`ffknd-portal` отдельно.
 
 ### Вручную по шагам
 
@@ -98,16 +115,55 @@ sudo cp /opt/trusttunnel/vpn.toml /etc/ttx/vpn.base.toml
 # 3) вписать доступы к панели
 sudo nano /etc/ttx/bridge.json         # api_token (рекомендуется) либо username/password
 
-# 4) проверить и согласовать
+# 4) убедиться, что в /etc/ttx/vpn.base.toml есть origin портала
+sudo nano /etc/ttx/vpn.base.toml
+```
+
+В редакторе добавьте таблицу, если её ещё нет:
+
+```toml
+[reverse_proxy]
+server_address = "127.0.0.1:8080"
+path_mask = "/"
+h3_backward_compatibility = false
+```
+
+После сохранения продолжите:
+
+```bash
+# 5) создать отдельный пароль входа в портал
+cd /opt/ttx/portal
+python3 -m app hash-password            # Python 3.11+; скопируйте выведенный хеш
+sudo cp -n /etc/ttx/portal.env.example /etc/ttx/portal.env
+sudo chmod 0600 /etc/ttx/portal.env
+sudo nano /etc/ttx/portal.env           # PORTAL_PASSWORD_HASH и PORTAL_PUBLIC_URL
+
+# 6) проверить и согласовать
 sudo ttx doctor
 sudo ttx reconcile --dry-run           # показать, что получится
 sudo ttx reconcile
 
-# 5) запустить
+# 7) запустить
 sudo systemctl daemon-reload
-sudo systemctl enable --now x-ui trusttunnel ttx-bridge
+sudo systemctl enable --now x-ui ffknd-portal trusttunnel ttx-bridge
 sudo /opt/ttx/tests/e2e-smoke.sh
 ```
+
+`install/ttx-install.sh` сам добавляет `[reverse_proxy]`, если
+`/etc/ttx/vpn.base.toml` уже существует. Он обрамляет свой блок маркерами и
+дополнительно сохраняет точечный snapshot `vpn.base.toml.portal-bak`.
+Штатный откат удаляет только помеченный блок командой
+`ffknd-portal-config remove /etc/ttx/vpn.base.toml`, не заменяя файл
+старым snapshot. При последовательности выше базовый файл появляется
+после установщика, поэтому блок показан явно.
+
+Пустой или неверного формата `PORTAL_PASSWORD_HASH` считается ошибкой:
+bootstrap не включает и, если нужно, останавливает `ffknd-portal`.
+TrustTunnel не имеет зависимостей `Wants=` или `Requires=` на портал и поэтому
+запускается независимо.
+Если bootstrap установил отдельный Python 3.11, используйте для
+`hash-password` путь к интерпретатору, который он напечатал и записал в
+`ffknd-portal.service`.
 
 Выдача клиента — штатным способом TrustTunnel:
 
@@ -130,6 +186,10 @@ cp rules.toml.example rules.toml
 mkdir -p certs                              # положите сюда fullchain.pem/privkey.pem
 # замените CHANGE_ME и vpn.example.com во вновь созданных файлах
 
+# сгенерируйте хеш и вставьте его в compose/.env как PORTAL_PASSWORD_HASH=...
+cd ../portal && python3 -m app hash-password && cd ../compose
+nano .env
+
 # сначала поднимите только панель, войдите через SSH-туннель на 127.0.0.1:2053,
 # смените начальные реквизиты и создайте API token в Settings → Security
 docker compose up -d x-ui
@@ -138,6 +198,29 @@ nano bridge.json                           # вставьте API token
 docker compose up -d --build
 ```
 
+В Compose контейнер `portal` работает от пользователя `portal`, использует
+`network_mode: "service:trusttunnel"` и слушает общий с TrustTunnel loopback на
+`127.0.0.1:8080`. У него нет `ports`: наружу публикуется только `443/tcp+udp`
+контейнера TrustTunnel. Обычный `docker compose restart trusttunnel`
+сохраняет namespace. Если же контейнер TrustTunnel пересоздаётся, пересоздайте
+оба контейнера за один запуск:
+`docker compose up -d --force-recreate trusttunnel portal`.
+
+После развёртывания проверьте обе ветки `443` с внешней машины:
+
+```bash
+export PORTAL_PUBLIC_URL=https://ffknd.ru
+export TT_CLIENT_USERNAME=alice
+read -r -s -p 'TrustTunnel password: ' TT_CLIENT_PASSWORD; echo
+export TT_CLIENT_PASSWORD
+./tests/port443-smoke.sh
+unset TT_CLIENT_PASSWORD
+```
+
+Без клиентских реквизитов доступен только неполный web-тест:
+`PORT443_WEB_ONLY=1 ./tests/port443-smoke.sh`. Детали и откат — в
+[RUNBOOK.md](RUNBOOK.md#проверка-общего-публичного-443).
+
 ## 4. Эксплуатация
 
 ```bash
@@ -145,11 +228,16 @@ ttx status              # состояние inbound и указателя в vp
 ttx reconcile           # разовая синхронизация
 ttx doctor              # проверки перед запуском
 journalctl -u ttx-bridge -f
+journalctl -u ffknd-portal -f
+curl --fail http://127.0.0.1:8080/api/health
 ```
 
 Мост отслеживает дрейф: если в панели кто-то поменял порт ingress'а или
 выключил inbound, при следующем цикле состояние восстановится, `vpn.toml`
-перегенерируется и TrustTunnel перезапустится. Поставьте `ingress.manage: false`,
+перегенерируется и TrustTunnel перезапустится. Перед записью итог проходит
+TOML-валидацию; после restart мост проверяет `systemctl is-active`. Если restart
+или health check не удался, файл атомарно возвращается в состояние перед
+apply и прежняя конфигурация запускается повторно. Поставьте `ingress.manage: false`,
 если хотите, чтобы панель считалась источником правды, а мост только подстраивал
 `vpn.toml`.
 
@@ -158,6 +246,7 @@ journalctl -u ttx-bridge -f
 | Порт | Кто слушает | Доступ |
 |---|---|---|
 | 443/tcp + 443/udp | TrustTunnel endpoint | публичный |
+| 8080/tcp | ffknd portal | **только loopback / общий namespace Compose** |
 | 10800/tcp | Xray inbound TTX-Ingress | **только loopback** |
 | 2053 (или сгенерированный) | панель 3x-ui | рекомендуется loopback + SSH-туннель |
 | 1987 | метрики TrustTunnel | loopback |
@@ -185,6 +274,11 @@ journalctl -u ttx-bridge -f
   клиент через туннель дотянется до панели на loopback. `ttx doctor` это
   проверяет, а `guard_loop` отказывается писать конфиг, если порт ingress'а
   совпал с `listen_address`.
+- **Исходящие URL портала.** RSS и мониторинг по умолчанию разрешают только
+  публичные адреса на портах 80/443. Не включайте `PORTAL_ALLOW_PRIVATE_URLS`
+  без необходимости: это расширяет доступ портала к внутренней сети.
+- **Локальный блокнот.** Мастер-пароль восстановить нельзя, а данные привязаны
+  к хранилищу конкретного браузера. Пароль входа в портал его не заменяет.
 
 ## 6. Дальнейшее развитие (не входит в текущую поставку)
 
@@ -195,9 +289,8 @@ journalctl -u ttx-bridge -f
 - **Синхронизация пользователей.** Двусторонняя связка `credentials.toml` ↔
   клиенты панели с проверкой квот и сроков (отключение пользователя в панели
   удаляет его из credentials и перечитывает конфиг).
-- **Общий порт 443.** Xray-inbound с fallback по SNI на 443, отдающий сырой TCP
-  на TrustTunnel для «своего» имени хоста — позволит держать на 443 и туннель, и
-  обычный сайт.
+- **Резервное копирование портала.** Автоматический экспорт SQLite и
+  зашифрованного локального блокнота пока не настроен.
 
 ## 7. Лицензии
 

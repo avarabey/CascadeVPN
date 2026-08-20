@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ru" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#10232c">
+  <meta name="description" content="Личный набор инструментов, заметок и технических памяток.">
+  <title>ffknd · личное пространство</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/portal.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l2.2-7 4.3 14 2.3-7H21"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5-5L12 3.6 9.6 6 7.3 3.7a4 4 0 0 0 5 5l-8.8 8.8a2.1 2.1 0 0 0 3 3Z"/><path d="m15 13 6 6-2 2-6-6"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></symbol>
+    <symbol id="i-rss" viewBox="0 0 24 24"><circle cx="5" cy="19" r="1.5"/><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5 8.5 8.5 0 1 0 20.5 14.3Z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.4 9A7 7 0 0 0 6.7 6.2L4 11M5.6 15A7 7 0 0 0 17.3 17.8L20 13"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20ZM12 9v5M12 18h.01"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
+  <div class="app-shell" data-sidebar="closed">
+    <button class="sidebar-scrim" type="button" aria-label="Закрыть меню" data-close-sidebar></button>
+    <aside class="sidebar" aria-label="Основная навигация">
+      <a class="brand" href="#overview" data-route-link="overview" aria-label="ffknd — обзор">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span class="brand-copy"><strong>ffknd</strong><small>личное пространство</small></span>
+      </a>
+
+      <nav class="nav-list">
+        <a class="nav-item is-active" href="#overview" data-route-link="overview" aria-label="Обзор"><svg><use href="#i-home"/></svg><span>Обзор</span></a>
+        <a class="nav-item" href="#status" data-route-link="status" aria-label="Статус"><svg><use href="#i-activity"/></svg><span>Статус</span><span class="nav-indicator" id="nav-status-indicator" aria-hidden="true"></span></a>
+        <a class="nav-item" href="#tools" data-route-link="tools" aria-label="Инструменты"><svg><use href="#i-tools"/></svg><span>Инструменты</span></a>
+        <a class="nav-item" href="#notes" data-route-link="notes" aria-label="Блокнот"><svg><use href="#i-note"/></svg><span>Блокнот</span></a>
+        <a class="nav-item" href="#feed" data-route-link="feed" aria-label="Лента"><svg><use href="#i-rss"/></svg><span>Лента</span></a>
+        <a class="nav-item" href="#links" data-route-link="links" aria-label="Ссылки и QR"><svg><use href="#i-link"/></svg><span>Ссылки и QR</span></a>
+        <a class="nav-item" href="#reference" data-route-link="reference" aria-label="Справочник"><svg><use href="#i-book"/></svg><span>Справочник</span></a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="privacy-note"><svg><use href="#i-lock"/></svg><span><strong>Локальная приватность</strong>Заметки шифруются в браузере</span></div>
+        <span class="version-label">ffknd portal</span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" type="button" aria-label="Открыть меню" aria-expanded="false" data-open-sidebar><svg><use href="#i-menu"/></svg></button>
+        <button class="global-search" type="button" aria-label="Открыть быстрый поиск" aria-haspopup="dialog" data-open-search>
+          <svg><use href="#i-search"/></svg>
+          <span>Поиск по порталу…</span>
+          <kbd><span class="platform-mod">Ctrl</span> K</kbd>
+        </button>
+        <div class="topbar-actions">
+          <button class="icon-button" id="theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему"><svg><use href="#i-moon"/></svg></button>
+          <button class="session-button" id="session-button" type="button" data-open-auth><span class="session-dot" aria-hidden="true"></span><svg><use href="#i-user"/></svg><span>Войти</span></button>
+        </div>
+      </header>
+
+      <main id="main-content" class="content" tabindex="-1">
+        <section class="view is-active" data-view="overview" aria-labelledby="overview-title">
+          <div class="page-heading overview-heading">
+            <div><p class="eyebrow" id="greeting-label">Добро пожаловать</p><h1 id="overview-title">Спокойное место для повседневных задач</h1><p>Сервисы, инструменты и заметки — без лишнего шума.</p></div>
+            <time class="current-date" id="current-date"></time>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="card service-overview-card">
+              <div class="card-heading"><div><span class="section-kicker">Состояние</span><h2>Сервисы</h2></div><a href="#status" data-route-link="status" class="text-link">Все проверки <span aria-hidden="true">→</span></a></div>
+              <div class="service-summary" id="overview-services" aria-live="polite">
+                <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+              </div>
+            </article>
+
+            <article class="card note-overview-card">
+              <div class="card-heading"><div><span class="section-kicker">Приватно</span><h2>Быстрая заметка</h2></div><span class="secure-chip"><svg><use href="#i-lock"/></svg>AES-GCM</span></div>
+              <p class="muted small">Откройте локальный блокнот, чтобы записать мысль. Содержимое не покидает этот браузер.</p>
+              <button class="note-callout" type="button" data-route-button="notes"><span class="note-callout-icon"><svg><use href="#i-note"/></svg></span><span><strong>Открыть блокнот</strong><small id="overview-note-state">Хранилище ещё не создано</small></span><svg class="chevron"><use href="#i-chevron"/></svg></button>
+            </article>
+
+            <article class="card tools-overview-card dashboard-wide">
+              <div class="card-heading"><div><span class="section-kicker">В браузере</span><h2>Быстрые инструменты</h2></div><a href="#tools" data-route-link="tools" class="text-link">Открыть все <span aria-hidden="true">→</span></a></div>
+              <div class="quick-tools">
+                <button type="button" data-tool-shortcut="json"><span class="tool-glyph">{ }</span><span><strong>JSON</strong><small>Форматировать</small></span></button>
+                <button type="button" data-tool-shortcut="base64"><span class="tool-glyph">64</span><span><strong>Base64</strong><small>Кодировать</small></span></button>
+                <button type="button" data-tool-shortcut="uuid"><span class="tool-glyph">#</span><span><strong>UUID</strong><small>Сгенерировать</small></span></button>
+                <button type="button" data-tool-shortcut="timestamp"><span class="tool-glyph">◷</span><span><strong>Timestamp</strong><small>Преобразовать</small></span></button>
+                <button type="button" data-tool-shortcut="password"><span class="tool-glyph">***</span><span><strong>Пароль</strong><small>Безопасный</small></span></button>
+                <button type="button" data-tool-shortcut="qr"><span class="tool-glyph qr-glyph">▦</span><span><strong>QR-код</strong><small>Создать локально</small></span></button>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-heading"><div><span class="section-kicker">Последнее</span><h2>Свежая лента</h2></div><a href="#feed" data-route-link="feed" class="text-link">Вся лента <span aria-hidden="true">→</span></a></div>
+              <div class="feed-preview" id="overview-feed" aria-live="polite"><div class="skeleton-story"></div><div class="skeleton-story"></div><div class="skeleton-story"></div></div>
+            </article>
+
+            <article class="card">
+              <div class="card-heading"><div><span class="section-kicker">Под рукой</span><h2>Шпаргалки</h2></div><a href="#reference" data-route-link="reference" class="text-link">Открыть <span aria-hidden="true">→</span></a></div>
+              <div class="reference-preview">
+                <button type="button" data-reference-shortcut="git"><span class="ref-icon">G</span><span><strong>Git без паники</strong><small>Ветки, история, отмена</small></span><svg><use href="#i-chevron"/></svg></button>
+                <button type="button" data-reference-shortcut="linux"><span class="ref-icon">$</span><span><strong>Linux CLI</strong><small>Файлы, процессы, сеть</small></span><svg><use href="#i-chevron"/></svg></button>
+                <button type="button" data-reference-shortcut="http"><span class="ref-icon">H</span><span><strong>HTTP</strong><small>Методы, коды, заголовки</small></span><svg><use href="#i-chevron"/></svg></button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view="status" aria-labelledby="status-title" hidden>
+          <div class="page-heading action-heading"><div><p class="eyebrow">Наблюдение</p><h1 id="status-title">Доступность сервисов</h1><p>Текущее состояние и время ответа ваших ресурсов.</p></div><div class="heading-actions"><button class="button secondary" id="refresh-status" type="button"><svg><use href="#i-refresh"/></svg>Обновить</button><button class="button primary auth-required" id="show-service-form" type="button"><svg><use href="#i-plus"/></svg>Добавить</button></div></div>
+          <div class="status-summary-grid" id="status-summary" aria-live="polite"></div>
+          <div class="inline-form card" id="service-form" hidden>
+            <form id="add-service-form"><div class="form-grid"><label><span>Название</span><input name="name" required maxlength="80" autocomplete="off" placeholder="Личный API"></label><label><span>Адрес проверки</span><input name="url" required type="url" maxlength="2048" placeholder="https://example.com/health"></label></div><div class="form-actions"><button class="button ghost" type="button" data-cancel-service>Отмена</button><button class="button primary" type="submit">Сохранить сервис</button></div></form>
+          </div>
+          <div class="card table-card"><div class="table-toolbar"><div><h2>Все проверки</h2><p id="status-updated">Ожидание данных…</p></div><div class="legend"><span><i class="dot ok"></i>Доступен</span><span><i class="dot slow"></i>Медленно</span><span><i class="dot down"></i>Недоступен</span></div></div><div class="service-table" id="service-table"><div class="empty-state compact"><span class="spinner"></span><p>Получаем состояние…</p></div></div></div>
+        </section>
+
+        <section class="view" data-view="tools" aria-labelledby="tools-title" hidden>
+          <div class="page-heading action-heading"><div><p class="eyebrow">Утилиты</p><h1 id="tools-title">Веб-инструменты</h1><p>Вычисления выполняются локально, введённые данные не отправляются.</p></div><span class="local-badge"><svg><use href="#i-lock"/></svg>Только в браузере</span></div>
+          <div class="tools-layout">
+            <div class="tool-tabs" role="tablist" aria-label="Выберите инструмент">
+              <button role="tab" aria-selected="true" aria-controls="tool-json" id="tab-json" data-tool-tab="json"><span>{ }</span><span><strong>JSON</strong><small>Форматирование</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-base64" id="tab-base64" data-tool-tab="base64"><span>64</span><span><strong>Base64</strong><small>Кодирование</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-uuid" id="tab-uuid" data-tool-tab="uuid"><span>#</span><span><strong>UUID</strong><small>Генератор v4</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-timestamp" id="tab-timestamp" data-tool-tab="timestamp"><span>◷</span><span><strong>Timestamp</strong><small>Дата и время</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-url" id="tab-url" data-tool-tab="url"><span>%</span><span><strong>URL</strong><small>Encode / decode</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-password" id="tab-password" data-tool-tab="password"><span>*</span><span><strong>Пароль</strong><small>Генератор</small></span></button>
+              <button role="tab" aria-selected="false" aria-controls="tool-qr" id="tab-qr" data-tool-tab="qr"><span>▦</span><span><strong>QR-код</strong><small>SVG локально</small></span></button>
+            </div>
+            <div class="tool-workspace card" id="tool-workspace">
+              <section class="tool-panel" id="tool-json" role="tabpanel" aria-labelledby="tab-json" data-tool-panel="json">
+                <div class="panel-title"><div><h2>JSON formatter</h2><p>Проверка, форматирование и минификация.</p></div><button class="icon-text-button" type="button" data-copy-target="json-output"><svg><use href="#i-copy"/></svg>Копировать</button></div>
+                <div class="dual-editor"><label><span>Исходный JSON</span><textarea id="json-input" spellcheck="false" placeholder='{"hello": "world"}'></textarea></label><label><span>Результат</span><textarea id="json-output" readonly spellcheck="false" placeholder="Здесь появится результат"></textarea></label></div>
+                <div class="tool-actions"><button class="button primary" type="button" id="json-format">Форматировать</button><button class="button secondary" type="button" id="json-minify">Минифицировать</button><button class="button ghost" type="button" id="json-clear">Очистить</button><span class="tool-message" id="json-message" role="status"></span></div>
+              </section>
+              <section class="tool-panel" id="tool-base64" role="tabpanel" aria-labelledby="tab-base64" data-tool-panel="base64" hidden>
+                <div class="panel-title"><div><h2>Base64</h2><p>Корректно работает с Unicode-текстом.</p></div><button class="icon-text-button" type="button" data-copy-target="base64-output"><svg><use href="#i-copy"/></svg>Копировать</button></div>
+                <div class="dual-editor"><label><span>Текст</span><textarea id="base64-input" placeholder="Введите текст"></textarea></label><label><span>Результат</span><textarea id="base64-output" readonly spellcheck="false"></textarea></label></div>
+                <div class="tool-actions"><button class="button primary" type="button" id="base64-encode">Кодировать</button><button class="button secondary" type="button" id="base64-decode">Декодировать</button><span class="tool-message" id="base64-message" role="status"></span></div>
+              </section>
+              <section class="tool-panel simple-tool" id="tool-uuid" role="tabpanel" aria-labelledby="tab-uuid" data-tool-panel="uuid" hidden>
+                <div class="panel-title"><div><h2>UUID v4</h2><p>Криптографически стойкие идентификаторы через Web Crypto.</p></div></div>
+                <label class="result-field"><span>Идентификатор</span><div><output id="uuid-output"></output><button class="icon-button" type="button" data-copy-target="uuid-output" aria-label="Копировать UUID"><svg><use href="#i-copy"/></svg></button></div></label>
+                <div class="tool-actions"><button class="button primary" type="button" id="uuid-generate">Новый UUID</button><label class="inline-select"><span>Количество</span><select id="uuid-count"><option>1</option><option>3</option><option>5</option><option>10</option></select></label></div>
+              </section>
+              <section class="tool-panel simple-tool" id="tool-timestamp" role="tabpanel" aria-labelledby="tab-timestamp" data-tool-panel="timestamp" hidden>
+                <div class="panel-title"><div><h2>Unix timestamp</h2><p>Преобразование секунд или миллисекунд в локальное время и ISO.</p></div></div>
+                <div class="timestamp-now"><span>Сейчас</span><strong id="timestamp-now"></strong><button class="icon-button" type="button" data-copy-target="timestamp-now" aria-label="Копировать timestamp"><svg><use href="#i-copy"/></svg></button></div>
+                <div class="input-action"><label><span>Timestamp или дата</span><input id="timestamp-input" placeholder="1724173200 или 2026-08-20 18:00"></label><button class="button primary" type="button" id="timestamp-convert">Преобразовать</button></div>
+                <div class="conversion-result" id="timestamp-result" aria-live="polite"></div>
+              </section>
+              <section class="tool-panel" id="tool-url" role="tabpanel" aria-labelledby="tab-url" data-tool-panel="url" hidden>
+                <div class="panel-title"><div><h2>URL encode / decode</h2><p>Преобразование компонентов URL с сохранением Unicode.</p></div><button class="icon-text-button" type="button" data-copy-target="url-output"><svg><use href="#i-copy"/></svg>Копировать</button></div>
+                <div class="dual-editor"><label><span>Исходное значение</span><textarea id="url-input" placeholder="https://example.com/?q=тест"></textarea></label><label><span>Результат</span><textarea id="url-output" readonly spellcheck="false"></textarea></label></div>
+                <div class="tool-actions"><button class="button primary" type="button" id="url-encode">Кодировать</button><button class="button secondary" type="button" id="url-decode">Декодировать</button><span class="tool-message" id="url-message" role="status"></span></div>
+              </section>
+              <section class="tool-panel simple-tool" id="tool-password" role="tabpanel" aria-labelledby="tab-password" data-tool-panel="password" hidden>
+                <div class="panel-title"><div><h2>Генератор паролей</h2><p>Случайные значения создаются через Web Crypto и нигде не сохраняются.</p></div></div>
+                <label class="result-field password-result"><span>Новый пароль</span><div><output id="password-output"></output><button class="icon-button" type="button" data-copy-target="password-output" aria-label="Копировать пароль"><svg><use href="#i-copy"/></svg></button></div></label>
+                <div class="password-options"><label><span>Длина: <output id="password-length-value">24</output></span><input id="password-length" type="range" min="8" max="64" value="24"></label><label class="check-label"><input id="password-uppercase" type="checkbox" checked><span>Заглавные</span></label><label class="check-label"><input id="password-numbers" type="checkbox" checked><span>Цифры</span></label><label class="check-label"><input id="password-symbols" type="checkbox" checked><span>Символы</span></label></div>
+                <div class="tool-actions"><button class="button primary" type="button" id="password-generate">Сгенерировать</button><span class="strength-label" id="password-strength"></span></div>
+              </section>
+              <section class="tool-panel simple-tool" id="tool-qr" role="tabpanel" aria-labelledby="tab-qr" data-tool-panel="qr" hidden>
+                <div class="panel-title"><div><h2>QR-код</h2><p>Изображение создаётся локально и не загружает данные во внешние сервисы.</p></div></div>
+                <div class="qr-builder"><div><label><span>Текст или ссылка</span><textarea id="qr-input" maxlength="1200" placeholder="https://example.com"></textarea></label><div class="tool-actions"><button class="button primary" type="button" id="qr-generate">Создать QR</button><button class="button secondary" type="button" id="qr-download" disabled>Скачать SVG</button></div><p class="tool-message" id="qr-message" role="status"></p></div><div class="qr-output empty" id="qr-output"><span>QR</span><small>Предпросмотр</small></div></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" data-view="notes" aria-labelledby="notes-title" hidden>
+          <div class="page-heading action-heading"><div><p class="eyebrow">Локально и зашифровано</p><h1 id="notes-title">Личный блокнот</h1><p>Мастер-пароль и открытый текст никогда не отправляются на сервер.</p></div><div class="heading-actions" id="notes-heading-actions"></div></div>
+          <div id="notes-root" aria-live="polite"></div>
+        </section>
+
+        <section class="view" data-view="feed" aria-labelledby="feed-title" hidden>
+          <div class="page-heading action-heading"><div><p class="eyebrow">Без алгоритмов</p><h1 id="feed-title">RSS-лента</h1><p>Новые материалы из выбранных вами источников.</p></div><div class="heading-actions"><button class="button secondary" id="refresh-feed" type="button"><svg><use href="#i-refresh"/></svg>Обновить</button></div></div>
+          <div class="feed-layout">
+            <aside class="card feed-sources"><div class="card-heading"><div><span class="section-kicker">Подписки</span><h2>Источники</h2></div><button class="icon-button auth-required" id="show-feed-form" type="button" aria-label="Добавить RSS-источник"><svg><use href="#i-plus"/></svg></button></div><form id="add-feed-form" class="stack-form" hidden><label><span>Адрес RSS или Atom</span><input name="url" type="url" required placeholder="https://example.com/feed.xml"></label><label><span>Название <small>необязательно</small></span><input name="title" maxlength="100" placeholder="Мой источник"></label><div class="form-actions"><button type="button" class="button ghost small-button" data-cancel-feed>Отмена</button><button class="button primary small-button" type="submit">Добавить</button></div></form><div class="source-list" id="feed-sources"></div></aside>
+            <div class="feed-content"><div class="feed-toolbar"><div class="segmented" role="group" aria-label="Фильтр ленты"><button type="button" class="is-active" data-feed-filter="all">Все</button><button type="button" data-feed-filter="today">Сегодня</button></div><span id="feed-count"></span></div><div class="feed-list" id="feed-list" aria-live="polite"><div class="card empty-state"><span class="spinner"></span><p>Загружаем ленту…</p></div></div></div>
+          </div>
+        </section>
+
+        <section class="view" data-view="links" aria-labelledby="links-title" hidden>
+          <div class="page-heading"><div><p class="eyebrow">Быстрый обмен</p><h1 id="links-title">Короткие ссылки и QR</h1><p>Создание доступно в личном режиме; переход по готовым ссылкам остаётся простым.</p></div></div>
+          <div class="links-grid">
+            <article class="card link-builder-card"><div class="card-heading"><div><span class="section-kicker">Новая</span><h2>Сократить ссылку</h2></div><span class="private-label"><svg><use href="#i-lock"/></svg>Личный режим</span></div><form id="short-link-form"><label><span>Длинная ссылка</span><input name="url" type="url" required maxlength="2048" placeholder="https://example.com/very/long/path"></label><label><span>Свой код <small>необязательно, 4–32 символа</small></span><div class="slug-input"><span>/s/</span><input name="code" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]{4,32}" autocomplete="off" placeholder="project"></div></label><button class="button primary full-width auth-required" type="submit">Создать короткую ссылку</button></form><div class="short-result" id="short-link-result" hidden></div></article>
+            <article class="card qr-side-card"><div class="card-heading"><div><span class="section-kicker">Предпросмотр</span><h2>QR-код</h2></div></div><div class="qr-output empty" id="link-qr-output"><span>QR</span><small>Появится после создания ссылки</small></div><button class="button secondary full-width" id="link-qr-download" type="button" disabled>Скачать SVG</button></article>
+            <article class="card dashboard-wide table-card"><div class="table-toolbar"><div><span class="section-kicker">История</span><h2>Последние ссылки</h2></div><button class="icon-button" type="button" id="refresh-links" aria-label="Обновить ссылки"><svg><use href="#i-refresh"/></svg></button></div><div id="links-list" class="links-list"><div class="empty-state compact"><p>Войдите, чтобы увидеть созданные ссылки.</p></div></div></article>
+          </div>
+        </section>
+
+        <section class="view" data-view="reference" aria-labelledby="reference-title" hidden>
+          <div class="page-heading"><div><p class="eyebrow">База знаний</p><h1 id="reference-title">Технический справочник</h1><p>Короткие практические памятки без долгих поисков.</p></div></div>
+          <div class="reference-layout">
+            <aside class="card reference-sidebar"><label class="reference-search"><svg><use href="#i-search"/></svg><input id="reference-search" type="search" placeholder="Найти команду…" autocomplete="off"></label><div class="reference-list" id="reference-list" role="listbox" aria-label="Статьи"></div></aside>
+            <article class="card reference-article" id="reference-article"><div class="empty-state"><span class="spinner"></span><p>Открываем справочник…</p></div></article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="modal" id="auth-dialog" aria-labelledby="auth-title">
+    <form method="dialog" class="modal-card" id="auth-form">
+      <button class="icon-button modal-close" type="button" data-close-auth aria-label="Закрыть"><svg><use href="#i-close"/></svg></button>
+      <span class="modal-icon"><svg><use href="#i-user"/></svg></span>
+      <div class="modal-heading"><h2 id="auth-title">Личный режим</h2><p>Войдите для настройки источников, проверок и коротких ссылок.</p></div>
+      <label><span>Пароль</span><input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="form-error" id="auth-error" role="alert"></p>
+      <button class="button primary full-width" type="submit">Войти</button>
+      <p class="modal-footnote"><svg><use href="#i-lock"/></svg>Сессия защищена HTTP-only cookie</p>
+    </form>
+  </dialog>
+
+  <dialog class="command-dialog" id="search-dialog" aria-labelledby="search-title">
+    <div class="command-card">
+      <div class="command-input"><svg><use href="#i-search"/></svg><input id="command-search" aria-labelledby="search-title" autocomplete="off" placeholder="Раздел, инструмент или статья…"><kbd>Esc</kbd></div>
+      <h2 class="visually-hidden" id="search-title">Быстрый поиск</h2>
+      <div class="command-results" id="command-results" role="listbox"></div>
+      <div class="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> выбрать</span><span><kbd>Enter</kbd> открыть</span></div>
+    </div>
+  </dialog>
+
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <noscript><div class="noscript">Для работы инструментов нужен JavaScript. Справочные страницы остаются доступны через API.</div></noscript>
+</body>
+</html>

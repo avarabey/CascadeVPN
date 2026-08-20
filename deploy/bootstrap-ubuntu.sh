@@ -132,7 +132,7 @@ command -v systemctl >/dev/null || die "нужен systemd"
 # --------------------------------------------------------------------------- #
 
 # --------------------------------------------------------------------------- #
-# 3. apt-зависимости + python3 >= 3.9
+# 3. apt-зависимости + python3 >= 3.11
 # --------------------------------------------------------------------------- #
 
 log "apt-get update"
@@ -141,13 +141,13 @@ DEBIAN_FRONTEND=noninteractive apt-get update -qq
 log "устанавливаю базовые пакеты (curl, ca-certificates, python3)"
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates python3 python3-minimal >/dev/null
 
-python_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; }
+python_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; }
 
 PYBIN="/usr/bin/python3"
 if python_ok "$PYBIN"; then
-  log "системный python3 уже >= 3.9 ($("$PYBIN" --version 2>&1))"
+  log "системный python3 уже >= 3.11 ($("$PYBIN" --version 2>&1))"
 else
-  warn "системный python3 ($("$PYBIN" --version 2>&1)) ниже 3.9 — нужен отдельный интерпретатор для ttx"
+  warn "системный python3 ($("$PYBIN" --version 2>&1)) ниже 3.11 — нужен отдельный интерпретатор для ttx"
   if command -v python3.11 >/dev/null && python_ok "$(command -v python3.11)"; then
     PYBIN="$(command -v python3.11)"
     log "нашёл готовый $PYBIN"
@@ -170,7 +170,7 @@ else
     fi
   fi
 fi
-python_ok "$PYBIN" || die "не удалось получить рабочий python3 >= 3.9 ($PYBIN)"
+python_ok "$PYBIN" || die "не удалось получить рабочий python3 >= 3.11 ($PYBIN)"
 
 # --------------------------------------------------------------------------- #
 # 4. Firewall (по умолчанию выключено)
@@ -202,17 +202,11 @@ fi
 # --------------------------------------------------------------------------- #
 
 log "запускаю install/ttx-install.sh"
-XUI_NONINTERACTIVE=1 TT_VERSION="$TT_VERSION" XUI_VERSION="$XUI_VERSION" \
+XUI_NONINTERACTIVE=1 TT_VERSION="$TT_VERSION" XUI_VERSION="$XUI_VERSION" PYTHON_BIN="$PYBIN" \
   "$REPO_ROOT/install/ttx-install.sh"
 
 TT_DIR="${TT_DIR:-/opt/trusttunnel}"
 TTX_ETC="${TTX_ETC:-/etc/ttx}"
-
-# Перецепляем CLI-обёртку ttx на найденный совместимый Python, если системный не годится.
-if [[ "$PYBIN" != "/usr/bin/python3" && -f /usr/local/bin/ttx ]]; then
-  sed -i "s#/usr/bin/python3#${PYBIN}#" /usr/local/bin/ttx
-  log "/usr/local/bin/ttx теперь использует $PYBIN"
-fi
 
 # Официальный установщик 3x-ui
 # сохраняет случайные реквизиты в root-only dotenv-файле. Берём API token оттуда,
@@ -350,9 +344,44 @@ fi
 log "ttx reconcile"
 /usr/local/bin/ttx reconcile
 
-log "systemctl daemon-reload + enable --now x-ui trusttunnel ttx-bridge"
+portal_hash_configured() {
+  [[ -r "$TTX_ETC/portal.env" ]] || return 1
+  awk '
+    /^PORTAL_PASSWORD_HASH=/ {
+      value = substr($0, length("PORTAL_PASSWORD_HASH=") + 1)
+      sub(/[[:space:]]+$/, "", value)
+      seen = 1
+    }
+    END {
+      fields = split(value, part, ":")
+      valid = seen && fields == 4 \
+        && part[1] == "pbkdf2_sha256" \
+        && part[2] ~ /^[0-9]+$/ \
+        && part[2] >= 100000 && part[2] <= 10000000 \
+        && part[3] ~ /^[A-Za-z0-9_-]+$/ && length(part[3]) >= 22 \
+        && part[4] ~ /^[A-Za-z0-9_-]+$/ && length(part[4]) == 43
+      exit(valid ? 0 : 1)
+    }
+  ' "$TTX_ETC/portal.env"
+}
+
+PORTAL_UNITS=()
+if portal_hash_configured; then
+  PORTAL_UNITS=(ffknd-portal)
+  log "portal.env содержит хеш нужного формата — включаю ffknd-portal"
+else
+  warn "portal не будет запущен: в $TTX_ETC/portal.env нет хеша нужного формата"
+  if systemctl is-active --quiet ffknd-portal \
+     || systemctl is-enabled --quiet ffknd-portal; then
+    log "отключаю ffknd-portal до настройки PORTAL_PASSWORD_HASH"
+    systemctl disable --now ffknd-portal \
+      || die "не удалось безопасно остановить ffknd-portal"
+  fi
+fi
+
+log "systemctl daemon-reload + enable --now x-ui ${PORTAL_UNITS[*]:-} trusttunnel ttx-bridge"
 systemctl daemon-reload
-systemctl enable --now x-ui trusttunnel ttx-bridge
+systemctl enable --now x-ui "${PORTAL_UNITS[@]}" trusttunnel ttx-bridge
 
 # --------------------------------------------------------------------------- #
 # 10. Смоук-тест и итог

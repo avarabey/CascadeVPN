@@ -13,3 +13,11 @@ rules_file = "rules.toml"
 [metrics]
 address = "0.0.0.0:1987"
 request_timeout_secs = 3
+
+# Контейнер portal разделяет network namespace с TrustTunnel и слушает их общий
+# loopback. Публичный 443/tcp+udp остаётся у TrustTunnel; обычные HTTP-запросы
+# он передаёт сюда, а VPN CONNECT продолжает обрабатывать как туннель.
+[reverse_proxy]
+server_address = "127.0.0.1:8080"
+path_mask = "/"
+h3_backward_compatibility = false

@@ -1,0 +1,13 @@
+[project]
+name = "ffknd-portal"
+version = "0.1.0"
+description = "Small standard-library utility portal"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+ffknd-portal = "app.main:cli"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

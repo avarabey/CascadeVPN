@@ -24,7 +24,8 @@
     "service": "trusttunnel.service",
     "binary": "",
     "extended_auth": false,
-    "restart_on_change": false
+    "restart_on_change": false,
+    "command_timeout_secs": 30
   },
   "compat": {
     "file": "/etc/ttx/compat.json",

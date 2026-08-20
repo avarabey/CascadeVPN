@@ -103,6 +103,24 @@ fi
 log "запускаю установку на сервере ($HOST)..."
 ssh -t "$HOST" "$INSTALL_CMD"
 
+# Публичный 443 проверяется именно с машины деплоя, а не изнутри сервера.
+# Тест не запускается по неявному адресу и не ждёт бесконечно: сам скрипт
+# ограничивает каждый curl через --max-time. Наличие всех трёх переменных —
+# явное согласие на HTTPS + CONNECT smoke после установки.
+if [[ -n "${PORTAL_PUBLIC_URL:-}" \
+      && -n "${TT_CLIENT_USERNAME:-}" \
+      && -n "${TT_CLIENT_PASSWORD:-}" ]]; then
+  log "запускаю внешний smoke для portal + CONNECT на публичном 443"
+  PORTAL_PUBLIC_URL="$PORTAL_PUBLIC_URL" \
+  TT_CLIENT_USERNAME="$TT_CLIENT_USERNAME" \
+  TT_CLIENT_PASSWORD="$TT_CLIENT_PASSWORD" \
+    "$SRC_DIR/tests/port443-smoke.sh"
+elif [[ -n "${PORTAL_PUBLIC_URL:-}${TT_CLIENT_USERNAME:-}${TT_CLIENT_PASSWORD:-}" ]]; then
+  warn "port443 smoke пропущен: задайте вместе PORTAL_PUBLIC_URL, TT_CLIENT_USERNAME и TT_CLIENT_PASSWORD"
+else
+  log "port443 smoke не запрошен (для запуска задайте PORTAL_PUBLIC_URL + TT_CLIENT_USERNAME + TT_CLIENT_PASSWORD)"
+fi
+
 cat <<EOF
 
 $(log "код на сервере развёрнут. Дальше — вручную на \$HOST:")

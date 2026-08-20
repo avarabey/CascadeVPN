@@ -29,3 +29,12 @@ rules_file = "rules.toml"
 [metrics]
 address = "127.0.0.1:1987"
 request_timeout_secs = 3
+
+# Обычные браузерные запросы на main_host обслуживает локальный портал.
+# TrustTunnel по-прежнему единолично слушает 443/tcp+udp и разделяет потоки:
+# authority-form CONNECT от VPN-клиента остаётся туннелем, пути вида /...
+# передаются origin-серверу как HTTP/1.1. Порт 8080 наружу не открывайте.
+[reverse_proxy]
+server_address = "127.0.0.1:8080"
+path_mask = "/"
+h3_backward_compatibility = false

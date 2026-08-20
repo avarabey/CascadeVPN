@@ -13,6 +13,8 @@ hosts.toml
 rules.toml
 certs/
 *.ttx-bak
+*.portal-bak
+portal/*.db
 
 __pycache__/
 *.pyc

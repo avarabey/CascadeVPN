@@ -1,0 +1,16 @@
+{
+    "upstream": {
+        "tag": "v1.0.33",
+        "commit": "c33f2a6a3a9490058ca76a4274f4c96da9ec51e6",
+        "source_url": "https://raw.githubusercontent.com/TrustTunnel/TrustTunnel/c33f2a6a3a9490058ca76a4274f4c96da9ec51e6/lib/src/http_demultiplexer.rs",
+        "source_sha256": "573731d7c2deb3df27d06eb4cb7af9cdda178b0cb46ee35312b474894df7b3a2",
+        "protocol_url": "https://github.com/TrustTunnel/TrustTunnel/blob/v1.0.33/PROTOCOL.md"
+    },
+    "contract": {
+        "path_mask": "/",
+        "reverse_proxy_predicate": "Route to ReverseProxy when the request URI path starts with path_mask.",
+        "fallback_channel": "Tunnel",
+        "connect_request_target_form": "authority-form",
+        "connect_uri_path": ""
+    }
+}

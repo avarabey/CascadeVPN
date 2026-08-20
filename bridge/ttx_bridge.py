@@ -14,25 +14,30 @@ ttx-bridge — связующий слой между TrustTunnel endpoint и 3x
      (socks|mixed, слушает на loopback) — точку входа трафика из TrustTunnel.
   3. Рендерит итоговый vpn.toml = базовый конфиг оператора + секция
      [forward_protocol.socks5], указывающая на этот inbound.
-  4. Если результат отличается от текущего — атомарно записывает и
-     перезапускает сервис TrustTunnel.
+  4. Если результат отличается от текущего — валидирует TOML, атомарно
+     записывает, перезапускает и проверяет TrustTunnel. При ошибке возвращает
+     прежний файл и пытается снова запустить прежнюю конфигурацию.
 
-Зависимости: только стандартная библиотека Python 3.9+.
+Зависимости: только стандартная библиотека Python 3.11+.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import json
 import logging
+import math
 import os
 import re
-import shutil
 import ssl
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -82,6 +87,7 @@ class Config:
         self.tt_binary: str = t.get("binary", "/opt/trusttunnel/trusttunnel_endpoint")
         self.tt_extended_auth: bool = bool(t.get("extended_auth", False))
         self.tt_restart: bool = bool(t.get("restart_on_change", True))
+        self.tt_command_timeout: float = float(t.get("command_timeout_secs", 30))
 
         c = raw.get("compat", {})
         self.compat_file: Path = Path(c.get("file", "/etc/ttx/compat.json"))
@@ -95,6 +101,8 @@ class Config:
             raise ValueError("ingress.protocol должен быть socks или mixed")
         if self.interval < 1:
             raise ValueError("interval_secs должен быть положительным")
+        if not math.isfinite(self.tt_command_timeout) or self.tt_command_timeout <= 0:
+            raise ValueError("trusttunnel.command_timeout_secs должен быть положительным")
         if self.tt_base.resolve() == self.tt_target.resolve():
             raise ValueError("base_config и target_config должны быть разными файлами")
 
@@ -378,33 +386,221 @@ def guard_loop(cfg: Config, rendered: str) -> None:
             "это создаст петлю трафика")
 
 
-def write_if_changed(path: Path, content: str, dry_run: bool) -> bool:
-    current = path.read_text(encoding="utf-8") if path.exists() else None
-    if current == content:
-        return False
+class TrustTunnelApplyError(RuntimeError):
+    """Итоговый конфиг не удалось безопасно применить."""
+
+
+class FileState:
+    """Снимок файла перед apply, достаточный для атомарного rollback."""
+
+    __slots__ = ("existed", "content", "mode", "uid", "gid")
+
+    def __init__(
+            self, existed: bool, content: bytes = b"", mode: int = 0o600,
+            uid: int | None = None, gid: int | None = None):
+        self.existed = existed
+        self.content = content
+        self.mode = mode
+        self.uid = uid
+        self.gid = gid
+
+
+def validate_vpn_config(content: str) -> None:
+    """Отклоняет некорректный TOML до любого изменения target-файла."""
+    try:
+        tomllib.loads(content)
+    except tomllib.TOMLDecodeError as exc:
+        raise TrustTunnelApplyError(f"итоговый vpn.toml невалиден: {exc}") from exc
+
+
+def capture_file_state(path: Path) -> FileState:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        return FileState(existed=False)
+    with os.fdopen(fd, "rb") as fh:
+        info = os.fstat(fh.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise TrustTunnelApplyError(
+                f"target_config не является обычным файлом: {path}")
+        content = fh.read()
+    return FileState(
+        existed=True,
+        content=content,
+        mode=stat.S_IMODE(info.st_mode),
+        uid=info.st_uid,
+        gid=info.st_gid,
+    )
+
+
+def _fsync_directory(path: Path) -> None:
+    """Фиксирует rename/unlink в каталоге; best effort для необычных FS."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def atomic_write(path: Path, content: bytes, state: FileState | None = None) -> None:
+    """Пишет файл через fsync + os.replace, сохраняя прежние метаданные."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".ttx-")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+            if state and state.existed:
+                os.fchmod(fh.fileno(), state.mode)
+                if state.uid is not None and state.gid is not None:
+                    try:
+                        os.fchown(fh.fileno(), state.uid, state.gid)
+                    except PermissionError:
+                        # Непривилегированный тест/контейнер обычно уже владеет
+                        # файлом; режим при этом всё равно сохранён.
+                        pass
+        os.replace(tmp, path)
+        _fsync_directory(path.parent)
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def restore_file_state(path: Path, previous: FileState) -> None:
+    """Атомарно возвращает файл в состояние непосредственно перед apply."""
+    if previous.existed:
+        atomic_write(path, previous.content, previous)
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    _fsync_directory(path.parent)
+
+
+@contextlib.contextmanager
+def apply_lock(path: Path, timeout_secs: float):
+    """Сериализует watch/timer/manual apply и защищает rollback от гонок."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.parent / ".ttx-bridge.lock"
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "w") as lock_file:
+        deadline = time.monotonic() + timeout_secs
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as exc:
+                if time.monotonic() >= deadline:
+                    raise TrustTunnelApplyError(
+                        f"таймаут ожидания блокировки apply: {lock_path}") from exc
+                time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def stage_config_if_changed(path: Path, content: str, dry_run: bool) -> FileState | None:
+    """Пишет изменившийся конфиг и возвращает снимок для возможного rollback."""
+    validate_vpn_config(content)
+    previous = capture_file_state(path)
+    encoded = content.encode("utf-8")
+    if previous.existed and previous.content == encoded:
+        return None
     LOG.info("конфигурация TrustTunnel изменилась → %s", path)
     if dry_run:
         sys.stdout.write(content)
+        return previous
+    if previous.existed:
+        backup = path.with_suffix(path.suffix + ".ttx-bak")
+        atomic_write(backup, previous.content, previous)
+    atomic_write(path, encoded, previous)
+    return previous
+
+
+def write_if_changed(path: Path, content: str, dry_run: bool) -> bool:
+    """Совместимая булева обёртка для атомарной записи без restart-транзакции."""
+    return stage_config_if_changed(path, content, dry_run) is not None
+
+
+def _systemctl(cfg: Config, action: str) -> None:
+    cmd = ["systemctl", action, cfg.tt_service]
+    LOG.info("systemctl: %s", " ".join(cmd))
+    subprocess.run(cmd, check=True, timeout=cfg.tt_command_timeout)
+
+
+def restart_trusttunnel(cfg: Config, dry_run: bool) -> bool:
+    if not cfg.tt_restart:
+        LOG.info("restart_on_change=false — перезапуск пропущен")
+        return False
+    if dry_run:
         return True
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if current is not None:
-        shutil.copy2(path, path.with_suffix(path.suffix + ".ttx-bak"))
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".ttx-")
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(content)
-    os.replace(tmp, path)
+    _systemctl(cfg, "restart")
     return True
 
 
-def restart_trusttunnel(cfg: Config, dry_run: bool) -> None:
-    if not cfg.tt_restart:
-        LOG.info("restart_on_change=false — перезапуск пропущен")
-        return
-    cmd = ["systemctl", "restart", cfg.tt_service]
-    LOG.info("перезапуск: %s", " ".join(cmd))
+def check_trusttunnel_health(cfg: Config, dry_run: bool) -> None:
+    """Ограниченная по времени post-restart проверка systemd-сервиса."""
     if dry_run:
         return
-    subprocess.run(cmd, check=True)
+    cmd = ["systemctl", "is-active", "--quiet", cfg.tt_service]
+    LOG.info("проверка после рестарта: %s", " ".join(cmd))
+    subprocess.run(cmd, check=True, timeout=cfg.tt_command_timeout)
+
+
+def recover_previous_config(cfg: Config, previous: FileState) -> str | None:
+    """Восстанавливает файл и пытается загрузить прежнюю конфигурацию."""
+    try:
+        restore_file_state(cfg.tt_target, previous)
+    except (OSError, TrustTunnelApplyError) as exc:
+        return f"не удалось восстановить предыдущий файл: {exc}"
+    try:
+        _systemctl(cfg, "restart")
+        check_trusttunnel_health(cfg, dry_run=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return str(exc)
+    return None
+
+
+def apply_trusttunnel_config(
+        cfg: Config, content: str, dry_run: bool, restart: bool = True) -> bool:
+    """Транзакционно пишет, рестартует, проверяет и при ошибке откатывает."""
+    validate_vpn_config(content)
+    with apply_lock(cfg.tt_target, cfg.tt_command_timeout):
+        previous = stage_config_if_changed(cfg.tt_target, content, dry_run)
+        if previous is None:
+            return False
+        if dry_run:
+            return True
+        if not restart:
+            LOG.info("--no-restart: перезапуск TrustTunnel пропущен")
+            return True
+        try:
+            restarted = restart_trusttunnel(cfg, dry_run=False)
+            if restarted:
+                check_trusttunnel_health(cfg, dry_run=False)
+        except (OSError, subprocess.SubprocessError) as exc:
+            LOG.error("новый vpn.toml не прошёл применение; выполняю rollback: %s", exc)
+            recovery_error = recover_previous_config(cfg, previous)
+            detail = "предыдущая конфигурация восстановлена и запущена"
+            if recovery_error:
+                detail = ("файл предыдущей конфигурации восстановлен, но её запуск "
+                          f"тоже завершился ошибкой: {recovery_error}")
+            raise TrustTunnelApplyError(
+                f"применение нового vpn.toml не удалось; {detail}") from exc
+        return True
 
 
 # --------------------------------------------------------------------------- #
@@ -457,12 +653,12 @@ def cmd_reconcile(cfg: Config, dry_run: bool, restart: bool = True) -> int:
 
     rendered = render_vpn_config(cfg)
     guard_loop(cfg, rendered)
-    if write_if_changed(cfg.tt_target, rendered, dry_run):
-        if restart:
-            restart_trusttunnel(cfg, dry_run)
-        else:
-            LOG.info("--no-restart: перезапуск TrustTunnel пропущен")
-    else:
+    try:
+        changed = apply_trusttunnel_config(cfg, rendered, dry_run, restart=restart)
+    except (TrustTunnelApplyError, OSError, subprocess.SubprocessError) as exc:
+        LOG.error("конфигурация TrustTunnel не применена: %s", exc)
+        return 4
+    if not changed:
         LOG.info("изменений нет — состояние согласовано")
     return 0
 
@@ -510,7 +706,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-c", "--config", default=os.environ.get("TTX_CONFIG", DEFAULT_CONFIG))
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-restart", action="store_true",
-                    help="записать конфиг без рестарта TrustTunnel (для ExecStartPre)")
+                    help="записать без systemctl restart (например, в контейнере)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -528,7 +724,9 @@ def main(argv: list[str] | None = None) -> int:
     LOG.info("watch: интервал %d с", cfg.interval)
     while True:
         try:
-            cmd_reconcile(cfg, args.dry_run, restart=not args.no_restart)
+            result = cmd_reconcile(cfg, args.dry_run, restart=not args.no_restart)
+            if result:
+                LOG.error("цикл согласования завершился с кодом %d", result)
         except (PanelError, OSError, subprocess.SubprocessError) as exc:
             LOG.error("цикл согласования не удался: %s", exc)
         time.sleep(cfg.interval)
