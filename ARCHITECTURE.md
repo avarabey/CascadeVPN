@@ -1,7 +1,7 @@
 # Архитектурные решения
 
 Нормативная production-топология версии
-[0.2.0](REPO_VERSION.md) описана в [SPEC.md §2](SPEC.md#2-архитектура-production-ffkndru).
+[0.2.1](REPO_VERSION.md) описана в [SPEC.md §2](SPEC.md#2-архитектура-production-ffkndru).
 Ниже сохранены решения reference-схемы TrustTunnel→3x-ui. Они не означают,
 что TrustTunnel владеет `443` на текущем production-хосте.
 

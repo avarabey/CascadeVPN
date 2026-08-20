@@ -1,7 +1,7 @@
 # Handoff: ffknd.ru portal production
 
 Актуальная спецификация: [SPEC.md](SPEC.md). Версия REPO:
-[0.2.0](REPO_VERSION.md).
+[0.2.1](REPO_VERSION.md).
 
 ## Текущее подтверждённое состояние
 
@@ -16,6 +16,8 @@
 - TrustTunnel независимо слушает `8443/tcp+udp` и использует Xray SOCKS
   ingress `127.0.0.1:10800`.
 - `x-ui`, `nginx`, `ffknd-portal`, `trusttunnel`, `ttx-bridge` active.
+- Portal 0.1.1 развёрнут; QR SVG сбрасывает глобальную icon-stroke
+  стилизацию, а CSS/главный JS загружаются с version cache-buster.
 - Let's Encrypt сертификат `ffknd.ru` + `www.ffknd.ru` действует до
   `2026-11-18`; deploy hook проверяет конфиг и reload'ит Nginx.
 - `https://ffknd.ru/api/health`, redirect `www`, default-SNI TLS и реальный
@@ -34,6 +36,8 @@
   `843a0c19b6ae631eec6dd4343cb44482a618ac6bdecd88c659984fc2150b11c6`.
 - Старый TrustTunnel drop-in сохранён в
   `/etc/systemd/system/trusttunnel.service.d/10-ttx-overlay.conf.before-portal-v0.2.0`.
+- Файлы portal до QR bugfix сохранены в
+  `/root/ffknd-portal-qr-before-v0.2.1`.
 - Начальный пароль портала не выводить в логи/чат; он лежит root-only в
   `/root/ffknd-portal-initial-password`.
 

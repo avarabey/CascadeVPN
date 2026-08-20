@@ -1,6 +1,6 @@
 # REPO version
 
-**Version:** `0.2.0`
+**Version:** `0.2.1`
 
 **Specification:** [SPEC.md](SPEC.md)
 
@@ -8,8 +8,9 @@
 
 **Release state:** production accepted on 2026-08-20.
 
-Эта версия описывает neutral portal ffknd, Nginx SNI router, Xray Reality
-backend на loopback и независимый TrustTunnel на `8443/tcp+udp`.
+Эта версия описывает neutral portal ffknd 0.1.1 с исправленным QR-rendering,
+Nginx SNI router, Xray Reality backend на loopback и независимый TrustTunnel
+на `8443/tcp+udp`.
 
 Все критерии [SPEC.md §14.3](SPEC.md#143-production-приёмка-ffkndru)
 выполнены, включая реальный VLESS Reality smoke после restart Xray,

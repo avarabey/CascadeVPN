@@ -327,7 +327,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .strength-label { margin-left: auto; color: var(--accent); font-size: 9px; }
 .qr-builder { display: grid; grid-template-columns: minmax(0, 1fr) 245px; gap: 24px; align-items: start; }
 .qr-output { width: min(100%, 245px); aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 13px; padding: 15px; background: #fff; color: #17242b; }
-.qr-output svg { width: 100%; height: 100%; shape-rendering: crispEdges; }
+.qr-output svg { width: 100%; height: 100%; fill: none; stroke: none; stroke-width: 0; shape-rendering: crispEdges; }
 .qr-output.empty { align-content: center; gap: 2px; border-style: dashed; background: var(--surface-soft); color: var(--text-faint); }
 .qr-output.empty span { font-family: var(--mono); font-size: 28px; font-weight: 700; }
 .qr-output.empty small { font-size: 9px; }

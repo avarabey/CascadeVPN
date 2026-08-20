@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -45,6 +46,30 @@ class PortalOperationsContractTests(unittest.TestCase):
 
         self.assertIn("if portal_hash_configured; then", bootstrap)
         self.assertIn("systemctl disable --now ffknd-portal", bootstrap)
+
+    def test_qr_svg_resets_global_icon_stroke(self):
+        stylesheet = (ROOT / "portal/app/static/css/portal.css").read_text(
+            encoding="utf-8"
+        )
+        global_svg_rule = stylesheet.index("svg { display: block;")
+        qr_rule_start = stylesheet.index(".qr-output svg {")
+        qr_rule_end = stylesheet.index("}", qr_rule_start)
+        qr_rule = stylesheet[qr_rule_start:qr_rule_end]
+
+        self.assertGreater(qr_rule_start, global_svg_rule)
+        self.assertIn("stroke: none", qr_rule)
+        self.assertIn("stroke-width: 0", qr_rule)
+        self.assertIn("shape-rendering: crispEdges", qr_rule)
+
+    def test_static_entry_assets_are_busted_by_portal_version(self):
+        package = (ROOT / "portal/app/__init__.py").read_text(encoding="utf-8")
+        index = (ROOT / "portal/app/static/index.html").read_text(encoding="utf-8")
+        version_match = re.search(r'__version__ = "([^"]+)"', package)
+
+        self.assertIsNotNone(version_match)
+        version = version_match.group(1)
+        self.assertIn(f'/static/css/portal.css?v={version}', index)
+        self.assertIn(f'/static/js/app.js?v={version}', index)
 
 
 if __name__ == "__main__":
