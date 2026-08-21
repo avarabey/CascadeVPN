@@ -1,7 +1,7 @@
 # Handoff: ffknd.ru portal production
 
 Актуальная спецификация: [SPEC.md](SPEC.md). Версия REPO:
-[0.2.1](REPO_VERSION.md).
+[0.2.2](REPO_VERSION.md).
 
 ## Текущее подтверждённое состояние
 
@@ -15,6 +15,7 @@
   рекламируется `ffknd.ru:443`, Reality SNI — `cloud.ru`.
 - TrustTunnel независимо слушает `8443/tcp+udp` и использует Xray SOCKS
   ingress `127.0.0.1:10800`.
+- `/opt/trusttunnel/credentials.toml` и `vpn.toml` имеют mode `0600`.
 - `x-ui`, `nginx`, `ffknd-portal`, `trusttunnel`, `ttx-bridge` active.
 - Portal 0.1.1 развёрнут; QR SVG сбрасывает глобальную icon-stroke
   стилизацию, а CSS/главный JS загружаются с version cache-buster.
@@ -22,6 +23,11 @@
   `2026-11-18`; deploy hook проверяет конфиг и reload'ит Nginx.
 - `https://ffknd.ru/api/health`, redirect `www`, default-SNI TLS и реальный
   VLESS Reality smoke прошли после явного restart Xray.
+- Memory guard активен: swap 1 GiB, `vm.swappiness=10`,
+  `user-0.slice` имеет `MemoryHigh=384M`, `MemoryMax=512M`,
+  `MemorySwapMax=512M`, `TasksMax=256`.
+- После memory hardening прошли официальный TrustTunnel Client
+  e2e через `tt.ffknd.ru:8443` и Reality e2e через public `443`.
 
 ## Состояние и резервные копии
 
@@ -32,6 +38,8 @@
 - Снимок конфигураций до cutover:
   `/root/ffknd-cutover-backup-20260820T0700Z`.
 - Инструменты live cutover: `/root/ffknd-cutover-tools`.
+- Memory guard: `/root/ffknd-memory-hardening`; managed state и swapfile:
+  `/var/lib/ffknd-memory`.
 - SHA-256 `deploy/xui_portal_cutover.py` для версии 0.2.0:
   `843a0c19b6ae631eec6dd4343cb44482a618ac6bdecd88c659984fc2150b11c6`.
 - Старый TrustTunnel drop-in сохранён в
@@ -50,10 +58,24 @@ restart x-ui он один раз попал в короткое окно, ко�
 `systemctl daemon-reload` без перезапуска VPN. Не возвращать `ExecStartPre`:
 изменения применяет транзакционный `ttx-bridge` с health check и rollback.
 
+## Инцидент памяти 2026-08-21
+
+Предыдущий boot завис вследствие глобального OOM на VM с 1 GiB RAM и
+без swap. Kernel убил PID 18125 (`MainThread`) в
+`user-0.slice/session-208.scope`; в той же отсоединённой root/SSH-сессии
+оставалось ещё пять процессов `MainThread`. Portal работал под UID 999
+в `system.slice` и не был OOM victim. Из-за повреждённого при OOM
+journal и отсутствия audit exec-rule точный executable PID 18125 не
+восстановлен; не переименовывать это в «сбой TrustTunnel».
+
+Защита и rollback описаны в [SPEC.md §14.4](SPEC.md#144-защита-production-хоста-от-исчерпания-памяти).
+Быстрая проверка: `sudo /root/ffknd-memory-hardening/deploy/harden-memory.sh status`.
+
 ## Быстрая проверка
 
 ```bash
 systemctl is-active x-ui nginx ffknd-portal trusttunnel ttx-bridge
+sudo /root/ffknd-memory-hardening/deploy/harden-memory.sh status
 ss -lntup | grep -E ':(443|8443|8080|9443|10443|10800)\b'
 curl --fail http://127.0.0.1:8080/api/health
 python3 /root/ffknd-cutover-tools/xui_portal_cutover.py status

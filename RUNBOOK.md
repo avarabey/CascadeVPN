@@ -23,6 +23,35 @@ Production: `443/tcp` принадлежит Nginx, `8443/tcp+udp` —
 TrustTunnel, portal — `127.0.0.1:8080`, Nginx TLS — `127.0.0.1:9443`, Xray
 Reality — `127.0.0.1:10443`, SOCKS ingress — `127.0.0.1:10800`.
 
+## Memory guard на production VM
+
+На VM с 1 GiB RAM активен REPO 0.2.2 memory guard. Он не меняет
+VPN-порты и не перезапускает сервисы: 1 GiB swap даёт ядру
+аварийный запас, а `user-0.slice` не даёт отсоединённым
+root/SSH-процессам вытеснить `system.slice`.
+
+Проверка:
+
+```bash
+sudo /root/ffknd-memory-hardening/deploy/harden-memory.sh status
+free -h
+systemctl show user-0.slice \
+  -p MemoryHigh -p MemoryMax -p MemorySwapMax -p TasksMax
+```
+
+Перед повторным apply сначала выполняйте `dry-run`. Откат
+удаляет только managed-файлы/строку fstab и восстанавливает
+прежнюю swappiness:
+
+```bash
+sudo /root/ffknd-memory-hardening/deploy/harden-memory.sh dry-run
+sudo /root/ffknd-memory-hardening/deploy/harden-memory.sh rollback
+```
+
+После rollback сразу повторите быструю проверку сервисов. Не
+удаляйте `/var/lib/ffknd-memory` и не редактируйте fstab вручную:
+скрипт проверяет ownership и managed-маркеры.
+
 Docker:
 
 ```bash
@@ -65,24 +94,19 @@ docker compose up -d --force-recreate trusttunnel portal
    Впишите полный результат как `PORTAL_PASSWORD_HASH=...`; также проверьте
    `PORTAL_PUBLIC_URL=https://ffknd.ru`. Порталу нужен Python 3.11+.
 
-3. Убедитесь, что в `/etc/ttx/vpn.base.toml` и в итоговом
-   `/opt/trusttunnel/vpn.toml` сохранился блок:
+3. Проверьте production TLS-terminator и Nginx config:
 
-   ```toml
-   [reverse_proxy]
-   server_address = "127.0.0.1:8080"
-   path_mask = "/"
-   h3_backward_compatibility = false
+   ```bash
+   nginx -t
+   curl --fail --resolve ffknd.ru:9443:127.0.0.1 \
+     https://ffknd.ru:9443/api/health
+   journalctl -u nginx -n 100 --no-pager
    ```
 
-   После исправления выполните `ttx reconcile --dry-run`, затем
-   `ttx reconcile`. Не меняйте сгенерированный `[forward_protocol.socks5]`
-   вручную.
-
-4. Если loopback-origin отвечает, но внешний HTTPS нет, смотрите
-   `journalctl -u trusttunnel -n 100 --no-pager`, сертификат и `main_host`.
-   Не запускайте nginx/Caddy/portal на публичном `443`: владельцем обоих
-   протоколов этого порта должен оставаться TrustTunnel.
+4. Если loopback-origin и `9443` отвечают, но внешний HTTPS нет,
+   сверьте `nginx/stream-conf.d/ffknd-router.conf`, DNS A-record и listener
+   `0.0.0.0:443`. Production-портал не идёт через TrustTunnel;
+   `[reverse_proxy]` нужен только reference/Compose-схеме.
 
 ## Портал открывается, но вход не работает
 

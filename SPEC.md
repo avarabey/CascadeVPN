@@ -374,6 +374,8 @@ ttx doctor                        # предполётные проверки (�
   `PORTAL_PASSWORD_HASH` не должны попадать
   в git — исключены в `.gitignore`; `deploy/deploy.sh` явно исключает их
   из синхронизации на сервер, чтобы не затирать то, что уже настроено на месте.
+  На bare-metal `credentials.toml` и `vpn.toml` обязаны иметь mode `0600`;
+  endpoint запускается от root и в более широких правах не нуждается.
 - **Portal SQLite**: bare-metal база и WAL лежат в
   `/var/lib/ffknd-portal`, Docker — в volume `portal-data`; каталог доступен
   только сервисному пользователю. Резервная копия SQLite не включает заметки,
@@ -664,7 +666,48 @@ default SNI получила валидный сертификат `cloud.ru`. �
 выполнен без перезапуска VPN; после исправления сервисы, listeners, portal TLS
 и реальный Reality smoke повторно проверены.
 
+### 14.4. Защита production-хоста от исчерпания памяти
+
+Production VM имеет 1 GiB RAM. Системные VPN-сервисы живут в
+`system.slice`, а интерактивные root/SSH-сессии — в `user-0.slice`.
+После инцидента 2026-08-21 последняя получает отдельный лимит:
+
+- `MemoryHigh=384M` включает reclaim до глобального дефицита;
+- `MemoryMax=512M` не даёт отсоединённым root-процессам забрать всю RAM;
+- `MemorySwapMax=512M` ограничивает swap этой slice;
+- `TasksMax=256` ограничивает дерево процессов/потоков SSH-сессий;
+- root-only swapfile `/var/lib/ffknd-memory/swapfile` размером 1 GiB
+  с `vm.swappiness=10` даёт ядру короткий аварийный запас, но не
+  делает swap обычным режимом работы.
+
+`deploy/harden-memory.sh` реализует `dry-run`, `apply`, `status` и
+`rollback`. Apply отказывается переписывать неуправляемые файлы,
+проверяет свободное место, записывает `/etc/fstab` атомарно и
+применяет slice-лимиты к уже активной `user-0.slice`. Rollback удаляет
+только точно помеченные файлы/строку fstab и восстанавливает
+исходное `vm.swappiness`.
+
+Приёмка memory guard:
+
+1. Swapfile активен и указан в `/etc/fstab` ровно один раз.
+2. `systemctl show user-0.slice` возвращает указанные лимиты.
+3. `x-ui`, `nginx`, `ffknd-portal`, `trusttunnel`, `ttx-bridge` активны.
+4. Listener-карта и public portal health не изменились.
+5. Официальный TrustTunnel Client делает HTTPS-запрос через
+   `tt.ffknd.ru:8443` и SOCKS-слушатель, не меняя маршруты хоста.
+
+**Результат 2026-08-21: принято.** Swap активен, все четыре
+slice-лимита совпадают с этой спецификацией, все пять сервисов
+active. Официальный TrustTunnel Client 1.0.49 получил HTTPS через
+`tt.ffknd.ru:8443` с выходом `95.182.85.8`; VLESS Reality smoke на `443`,
+portal health, `ttx doctor` и server-side SOCKS e2e также прошли.
+
 ## 15. Журнал изменений
+
+- **2026-08-21, REPO 0.2.2** — после host-wide OOM добавлен
+  memory guard: 1 GiB swapfile, низкая swappiness и cgroup-лимиты
+  только для `user-0.slice`. VPN-сервисы в `system.slice`, порты и
+  конфиги TrustTunnel/Xray/Nginx не меняются.
 
 - **2026-08-20, REPO 0.2.1 / portal 0.1.1** — исправлен рендер QR-кодов:
   общий CSS для SVG-иконок добавлял QR-матрице скруглённую обводку 1.8 px,

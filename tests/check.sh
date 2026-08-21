@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 for file in install/ttx-install.sh deploy/deploy.sh deploy/bootstrap-ubuntu.sh \
+            deploy/harden-memory.sh \
             tests/e2e-smoke.sh tests/port443-smoke.sh tests/reality-e2e-smoke.sh \
             tests/check.sh \
             tests/verify-trusttunnel-routing-source.sh; do

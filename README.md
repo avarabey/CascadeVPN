@@ -1,6 +1,6 @@
 # CascadeVPN / ffknd portal
 
-Текущая версия REPO: [0.2.1](REPO_VERSION.md). Полная нормативная
+Текущая версия REPO: [0.2.2](REPO_VERSION.md). Полная нормативная
 конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
 [HANDOFF.md](HANDOFF.md).
 
@@ -46,6 +46,7 @@ Reference/Compose-схема с TrustTunnel как владельцем `443/tcp
 | `portal/` | Личный портал на стандартной библиотеке Python 3.11+ и SQLite, без внешних Python-зависимостей |
 | `systemd/ffknd-portal.service` | Изолированный bare-metal сервис портала на loopback:8080 |
 | `tests/port443-smoke.sh` | Внешняя проверка обычного HTTPS и VPN CONNECT через один `443` |
+| `deploy/harden-memory.sh` | Транзакционный memory guard для 1 GiB production VM: swap, лимит `user-0.slice`, status и rollback |
 
 ### Что есть в ffknd portal
 
