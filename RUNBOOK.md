@@ -14,7 +14,7 @@ Bare-metal:
 
 ```bash
 systemctl status nginx trusttunnel ffknd-portal ttx-bridge x-ui
-ss -ltnup | grep -E ':(443|8443|8080|9443|10443|10800)\b'
+ss -ltnup | grep -E ':(443|8443|8080|9443|10443|10800|65535)\b'
 curl --fail http://127.0.0.1:8080/api/health
 ttx status
 ```
@@ -22,6 +22,31 @@ ttx status
 Production: `443/tcp` принадлежит Nginx, `8443/tcp+udp` —
 TrustTunnel, portal — `127.0.0.1:8080`, Nginx TLS — `127.0.0.1:9443`, Xray
 Reality — `127.0.0.1:10443`, SOCKS ingress — `127.0.0.1:10800`.
+
+## Не открывается подписка 3x-ui
+
+Не записывайте полный URL с token в журнал или репозиторий. Передайте его
+интерактивно через переменную и не выводите тело ответа:
+
+```bash
+read -r -s -p 'Subscription URL: ' SUBSCRIPTION_URL; echo
+curl --fail --silent --show-error --output /dev/null \
+  --write-out 'HTTP %{http_code}\n' "$SUBSCRIPTION_URL"
+unset SUBSCRIPTION_URL
+```
+
+На сервере проверьте сервис, listener и порядок UFW:
+
+```bash
+systemctl is-active x-ui
+ss -lntp | grep ':65535\b'
+sudo ufw status numbered
+```
+
+Если `REJECT 65535/tcp` расположен перед `ALLOW`, нижнее правило не работает:
+UFW применяет первое совпадение. Сначала сделайте root-only backup
+`/etc/ufw/user.rules` и `user6.rules`, затем выполните dry-run точечного
+удаления. Не меняйте правила `443`, `8443`, `24527` и SSH.
 
 ## Memory guard на production VM
 

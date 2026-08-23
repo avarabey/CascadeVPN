@@ -1,20 +1,20 @@
 # REPO version
 
-**Version:** `0.2.2`
+**Version:** `0.2.3`
 
 **Specification:** [SPEC.md](SPEC.md)
 
-**Specification revision:** `2026-08-21`
+**Specification revision:** `2026-08-23`
 
-**Release state:** production accepted on 2026-08-21.
+**Release state:** production accepted on 2026-08-23.
 
-Эта версия описывает neutral portal ffknd 0.1.1, Nginx SNI router,
+Эта версия сохраняет neutral portal ffknd 0.1.1, Nginx SNI router,
 Xray Reality backend на loopback, независимый TrustTunnel на `8443/tcp+udp`
-и memory guard для 1 GiB production VM по
-[SPEC.md §14.4](SPEC.md#144-защита-production-хоста-от-исчерпания-памяти).
+и memory guard для 1 GiB production VM. Дополнительно она фиксирует рабочий
+публичный HTTPS endpoint подписок 3x-ui на `65535/tcp` по
+[SPEC.md §14.5](SPEC.md#145-публичная-3x-ui-подписка).
 
-Все критерии [SPEC.md §14.3](SPEC.md#143-production-приёмка-ffkndru) и
-[SPEC.md §14.4](SPEC.md#144-защита-production-хоста-от-исчерпания-памяти)
-выполнены. После memory hardening повторно прошли официальный
-TrustTunnel Client e2e на `8443`, VLESS Reality e2e на `443`, public TLS,
-portal health и полная listener-карта.
+Критерии [SPEC.md §14.5](SPEC.md#145-публичная-3x-ui-подписка) выполнены:
+конфликтующий UFW `REJECT 65535/tcp` удалён, внешний и локальный запросы
+подписки вернули `200 OK`, TLS-проверка по IP прошла, сервисы и listener-карта
+не изменились. Предыдущая приёмка §14.3 и §14.4 остаётся действующей.

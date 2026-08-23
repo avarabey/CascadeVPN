@@ -1,6 +1,6 @@
 # CascadeVPN / ffknd portal
 
-Текущая версия REPO: [0.2.2](REPO_VERSION.md). Полная нормативная
+Текущая версия REPO: [0.2.3](REPO_VERSION.md). Полная нормативная
 конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
 [HANDOFF.md](HANDOFF.md).
 
@@ -25,6 +25,8 @@ Internet :443/tcp ──► Nginx stream ssl_preread
                        └── default ──► Xray Reality 127.0.0.1:10443
 
 Internet :8443/tcp+udp ──► TrustTunnel ──► Xray SOCKS 127.0.0.1:10800
+
+Internet :65535/tcp ──► x-ui HTTPS subscriptions /subs/<token>
 ```
 
 Nginx не завершает TLS на Reality-ветке и не использует PROXY protocol.

@@ -1,7 +1,7 @@
 # Handoff: ffknd.ru portal production
 
 Актуальная спецификация: [SPEC.md](SPEC.md). Версия REPO:
-[0.2.2](REPO_VERSION.md).
+[0.2.3](REPO_VERSION.md).
 
 ## Текущее подтверждённое состояние
 
@@ -15,6 +15,9 @@
   рекламируется `ffknd.ru:443`, Reality SNI — `cloud.ru`.
 - TrustTunnel независимо слушает `8443/tcp+udp` и использует Xray SOCKS
   ingress `127.0.0.1:10800`.
+- x-ui слушает отдельный HTTPS endpoint подписок на `*:65535/tcp`; UFW
+  пропускает порт без предшествующего `REJECT`. Внешний GET с обычной
+  TLS-проверкой принят 2026-08-23.
 - `/opt/trusttunnel/credentials.toml` и `vpn.toml` имеют mode `0600`.
 - `x-ui`, `nginx`, `ffknd-portal`, `trusttunnel`, `ttx-bridge` active.
 - Portal 0.1.1 развёрнут; QR SVG сбрасывает глобальную icon-stroke
@@ -40,6 +43,8 @@
 - Инструменты live cutover: `/root/ffknd-cutover-tools`.
 - Memory guard: `/root/ffknd-memory-hardening`; managed state и swapfile:
   `/var/lib/ffknd-memory`.
+- UFW до восстановления подписки:
+  `/root/ufw-before-subscription-v0.2.3-20260823/`.
 - SHA-256 `deploy/xui_portal_cutover.py` для версии 0.2.0:
   `843a0c19b6ae631eec6dd4343cb44482a618ac6bdecd88c659984fc2150b11c6`.
 - Старый TrustTunnel drop-in сохранён в
