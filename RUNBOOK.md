@@ -48,6 +48,28 @@ UFW применяет первое совпадение. Сначала сде�
 `/etc/ufw/user.rules` и `user6.rules`, затем выполните dry-run точечного
 удаления. Не меняйте правила `443`, `8443`, `24527` и SSH.
 
+### Обновление IP-сертификата подписки
+
+Этот сертификат не входит в `certbot certificates`. Им управляет root-only
+`acme.sh` с профилем `shortlived`; challenge проходит через Nginx default
+server и webroot `/var/www/html`:
+
+```bash
+sudo /root/.acme.sh/acme.sh --list --home /root/.acme.sh
+sudo grep -E '^(Le_Webroot|Le_NextRenewTimeStr|Le_Certificate_Profile)=' \
+  /root/.acme.sh/135.106.175.165_ecc/135.106.175.165.conf
+sudo openssl x509 -in /root/cert/ip/fullchain.pem \
+  -noout -dates -ext subjectAltName
+```
+
+Нормальное значение — `Le_Webroot='/var/www/html'`. Значение `no` включает
+standalone mode, который после Nginx cutover не может занять порт `80`.
+Перед принудительным issue сохраните root-only backup каталога сертификата и
+domain config. После установки `acme.sh` выполняет `systemctl restart x-ui`;
+обязательно повторите subscription GET, Reality smoke на `443` и TrustTunnel
+e2e. Не меняйте Reality target только из-за единичного сетевого timeout:
+сначала проверьте target непосредственно с production-хоста.
+
 ## Memory guard на production VM
 
 На VM с 1 GiB RAM активен REPO 0.2.2 memory guard. Он не меняет

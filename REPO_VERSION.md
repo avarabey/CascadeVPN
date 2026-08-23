@@ -1,6 +1,6 @@
 # REPO version
 
-**Version:** `0.2.3`
+**Version:** `0.2.4`
 
 **Specification:** [SPEC.md](SPEC.md)
 
@@ -10,11 +10,11 @@
 
 Эта версия сохраняет neutral portal ffknd 0.1.1, Nginx SNI router,
 Xray Reality backend на loopback, независимый TrustTunnel на `8443/tcp+udp`
-и memory guard для 1 GiB production VM. Дополнительно она фиксирует рабочий
-публичный HTTPS endpoint подписок 3x-ui на `65535/tcp` по
-[SPEC.md §14.5](SPEC.md#145-публичная-3x-ui-подписка).
+и публичную подписку 3x-ui на `65535/tcp`. Она восстанавливает автоматическое
+обновление отдельного short-lived IP-сертификата подписки по
+[SPEC.md §14.6](SPEC.md#146-обновление-короткоживущего-ip-сертификата-подписки).
 
-Критерии [SPEC.md §14.5](SPEC.md#145-публичная-3x-ui-подписка) выполнены:
-конфликтующий UFW `REJECT 65535/tcp` удалён, внешний и локальный запросы
-подписки вернули `200 OK`, TLS-проверка по IP прошла, сервисы и listener-карта
-не изменились. Предыдущая приёмка §14.3 и §14.4 остаётся действующей.
+`acme.sh` переведён со standalone на Nginx webroot `/var/www/html`, новый
+сертификат установлен и принят внешним TLS/HTTP smoke, cron сохранил следующий
+renew. После reload x-ui повторно прошли VLESS Reality на `443`, TrustTunnel
+e2e, portal health и подписка. Reality target и клиенты не менялись.

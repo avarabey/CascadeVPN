@@ -130,6 +130,12 @@ if ! curl --fail --silent --show-error --max-time 30 \
   --socks5-hostname "127.0.0.1:$SOCKS_PORT" \
   --output "$CURL_BODY" --stderr "$CURL_ERROR" \
   "$CHECK_URL"; then
+  if [[ -s "$CURL_ERROR" ]]; then
+    sed 's/^/[curl] /' "$CURL_ERROR" >&2
+  fi
+  if [[ -s "$XRAY_LOG" ]]; then
+    tail -n 30 "$XRAY_LOG" | sed 's/^/[xray] /' >&2
+  fi
   bad "HTTPS-запрос через VLESS Reality не прошёл"
 fi
 python3 "$HELPER" validate-trace --path "$CURL_BODY" \

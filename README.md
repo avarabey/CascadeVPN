@@ -1,6 +1,6 @@
 # CascadeVPN / ffknd portal
 
-Текущая версия REPO: [0.2.3](REPO_VERSION.md). Полная нормативная
+Текущая версия REPO: [0.2.4](REPO_VERSION.md). Полная нормативная
 конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
 [HANDOFF.md](HANDOFF.md).
 
