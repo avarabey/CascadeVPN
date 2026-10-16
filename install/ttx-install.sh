@@ -92,8 +92,11 @@ step_overlay() {
   fi
 
   install -d /etc/systemd/system/trusttunnel.service.d
+  install -d /etc/systemd/system/x-ui.service.d
   install -m 0644 "$SRC/systemd/trusttunnel.service.d/10-ttx-overlay.conf" \
                   /etc/systemd/system/trusttunnel.service.d/10-ttx-overlay.conf
+  install -m 0644 "$SRC/systemd/x-ui.service.d/20-ttx-dependents.conf" \
+                  /etc/systemd/system/x-ui.service.d/20-ttx-dependents.conf
   for u in ttx-bridge.service ttx-reconcile.service ttx-reconcile.timer; do
     install -m 0644 "$SRC/systemd/$u" "/etc/systemd/system/$u"
   done

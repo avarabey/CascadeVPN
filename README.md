@@ -1,6 +1,6 @@
 # CascadeVPN / ffknd portal
 
-Текущая версия REPO: [0.2.4](REPO_VERSION.md). Полная нормативная
+Текущая версия REPO: [0.2.5](REPO_VERSION.md). Полная нормативная
 конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
 [HANDOFF.md](HANDOFF.md).
 
@@ -42,6 +42,9 @@ Reference/Compose-схема с TrustTunnel как владельцем `443/tcp
 | `templates/vpn.base.toml.example` | Базовый конфиг оператора — источник правды, мост его не трогает |
 | `templates/compat.json` | Матрица совместимости версий upstream + контракт «какие таблицы конфига мы считаем своими» |
 | `systemd/trusttunnel.service.d/10-ttx-overlay.conf` | Drop-in к юниту TrustTunnel: только порядок запуска, без изменения конфига в `ExecStartPre`. Оригинальный юнит остаётся нетронутым |
+| `systemd/x-ui.service.d/20-ttx-dependents.conf` | Возвращает TrustTunnel и bridge после restart/web update x-ui |
+| `deploy/xui_subscription_recovery.py` | Транзакционно восстанавливает прежний subscription token текущего клиента |
+| `deploy/xui_outbound_client_recovery.py` | Транзакционно синхронизирует UUID/flow выбранного outbound с текущим клиентом |
 | `install/ttx-install.sh` | Ставит оба проекта их же штатными установщиками и разворачивает обвязку поверх |
 | `compose/` | Docker-вариант: образы берутся из upstream по тегу, без вендоринга кода |
 | `tests/e2e-smoke.sh` | Сквозная проверка цепочки |
@@ -67,9 +70,10 @@ SQLite хранит серверные сессии, настройки пров
 
 ### Принцип «расширение, а не модификация»
 
-1. **3x-ui** — только REST API (`/login`, `/panel/api/inbounds/*`). Ни база
-   `x-ui.db`, ни Go-код, ни шаблоны панели не трогаются. Всё, что делает мост,
-   оператор может сделать руками в веб-интерфейсе.
+1. **3x-ui** — штатная работа моста идёт только через REST API. Break-glass
+   recovery шаблона Xray делает compare-and-swap единственного поля в SQLite
+   после online backup и хранит root-only rollback-state; Go-код и шаблоны
+   панели не меняются.
 2. **TrustTunnel** — генерируется только `vpn.toml`, и только одна таблица в нём.
    Всё остальное копируется из вашего базового файла байт в байт; управляемый
    блок отделён маркером. Бинарники и `scripts/` берутся из релизов как есть.

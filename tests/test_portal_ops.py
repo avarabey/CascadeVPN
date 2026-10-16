@@ -20,6 +20,17 @@ class PortalOperationsContractTests(unittest.TestCase):
             "TrustTunnel must remain startable when the optional portal is disabled",
         )
 
+    def test_xui_restart_pulls_local_dependents_back_in(self):
+        drop_in = (
+            ROOT / "systemd/x-ui.service.d/20-ttx-dependents.conf"
+        ).read_text(encoding="utf-8")
+        installer = (ROOT / "install/ttx-install.sh").read_text(encoding="utf-8")
+
+        self.assertIn("Wants=ttx-bridge.service trusttunnel.service", drop_in)
+        self.assertIn("Before=ttx-bridge.service trusttunnel.service", drop_in)
+        self.assertNotIn("Requires=", drop_in)
+        self.assertIn("20-ttx-dependents.conf", installer)
+
     def test_bare_metal_env_uses_systemd_writable_state_directory(self):
         environment = (ROOT / "portal/portal.env.example").read_text(encoding="utf-8")
 

@@ -314,6 +314,27 @@ sudo ttx reconcile
 убедитесь, что он обновил общий volume, и только затем перезапустите
 `trusttunnel`. Публичный `443` никогда не передавайте другому контейнеру.
 
+## После web update 3x-ui
+
+Если x-ui active, но TrustTunnel/bridge остановлены, установите drop-in
+`systemd/x-ui.service.d/20-ttx-dependents.conf`, выполните
+`systemctl daemon-reload` и `systemctl start x-ui`. Он мягко подтянет оба
+зависимых сервиса и не блокирует панель при их собственной ошибке.
+
+Если прежний `/subs/<token>` отвечает `404`, не восстанавливайте старую БД
+целиком. Используйте `deploy/xui_subscription_recovery.py`: сначала `dry-run`,
+затем `apply` с доверенной backup-БД, исходным email, текущим email и точным
+набором inbound. Инструмент использует новый `clients/update/{email}` API,
+делает online backup и автоматически откатывает частичную ошибку.
+
+Если e2e видит ingress, но зарубежные HTTPS-сайты не открываются, сравните
+UUID и flow VLESS outbound с текущим клиентом удалённого inbound. Для одного
+подтверждённого outbound используйте `deploy/xui_outbound_client_recovery.py`;
+он меняет только `settings.id`/`settings.flow` в `xrayTemplateConfig` через
+compare-and-swap, перезапускает x-ui и проверяет активный config. После этого
+обязательно прогоните `ttx doctor`, dry-run reconcile, оба e2e-smoke и URL
+подписки с обычной TLS-проверкой.
+
 ## Полное отключение обвязки
 
 Этот сценарий отключает и портал, и интеграцию с 3x-ui; он не нужен для

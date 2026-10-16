@@ -1,13 +1,13 @@
 # SPEC — CascadeVPN / ffknd portal
 
-**Версия спецификации:** 0.2.4
+**Версия спецификации:** 0.2.5
 
-**Версия REPO:** [0.2.4](REPO_VERSION.md)
+**Версия REPO:** [0.2.5](REPO_VERSION.md)
 
 **Состояние:** production cutover публичного `443/tcp` завершён; portal 0.1.1
 с исправленным QR-rendering развёрнут, критерии §14.3 выполнены 2026-08-20.
 Публичная 3x-ui подписка на `65535/tcp` и обновление её IP-сертификата
-описаны контрактами §14.5–14.6.
+описаны контрактами §14.5–14.7.
 
 Живой документ. Обновляется по ходу работы над проектом; в конце — журнал
 изменений. Дублирует часть [README.md](README.md) и [ARCHITECTURE.md](ARCHITECTURE.md),
@@ -99,6 +99,7 @@ CascadeVPN/
 │   └── vpn.base.toml.example — образец базового конфига TrustTunnel
 ├── systemd/
 │   ├── trusttunnel.service.d/10-ttx-overlay.conf  — drop-in к юниту TrustTunnel
+│   ├── x-ui.service.d/20-ttx-dependents.conf — возврат TT/bridge после restart x-ui
 │   ├── ffknd-portal.service    — портал на loopback:8080 от ttx-portal
 │   ├── ttx-bridge.service     — постоянный демон (`ttx watch`), основной режим
 │   ├── ttx-reconcile.service  — разовый reconcile
@@ -779,7 +780,64 @@ production-хоста к `cloud.ru:443`. Когда прямой и SOCKS-дос
 Reality target, serverNames, клиенты, ключи и shortId не изменялись;
 TrustTunnel e2e и portal health также прошли.
 
+### 14.7. Восстановление после web update 3x-ui
+
+Web update 3x-ui штатно выполняет `systemctl stop x-ui` и затем запускает
+панель снова. Поскольку `ttx-bridge` и TrustTunnel используют
+`Requires=x-ui.service`, остановка панели распространяется на них, но обратная
+зависимость отсутствует: upstream updater не знает, что их нужно снова
+запустить. Локальный drop-in
+`systemd/x-ui.service.d/20-ttx-dependents.conf` добавляет к x-ui мягкий
+`Wants=` и порядок `Before=` для обоих сервисов. Их возможный сбой не должен
+блокировать запуск панели.
+
+Subscription token является частью клиента каждого участвующего inbound.
+Если запрошенный `/subs/<token>` возвращает `404` и token отсутствует в
+текущей БД, восстанавливать всю старую БД нельзя. Допустима только точечная
+замена `subId` у подтверждённого текущего клиента через API 3x-ui с online
+SQLite backup и полным root-only rollback state. UUID/password, email,
+счётчики, enable, Reality keys, shortId, routing и остальные клиенты не
+изменяются.
+
+Критерии приёмки:
+
+1. Старый URL подписки возвращает `200 OK` без отключения TLS-проверки.
+2. До и после apply совпадают UUID/password fingerprints, email, число
+   клиентов и все поля inbound, кроме выбранного `subId` и служебного времени
+   обновления; отсутствующий/`null`/нулевой `resetWeekday` эквивалентны.
+3. `x-ui`, `ttx-bridge` и TrustTunnel active; listener `8443/tcp+udp`
+   восстановлен.
+4. `ttx doctor`, `ttx reconcile --dry-run`, server-side e2e и настоящий
+   VLESS Reality smoke на `443` проходят.
+5. После контролируемого `restart x-ui` оба локальных зависимых сервиса снова
+   active благодаря drop-in.
+
+Для восстановления token используется клиентский API
+`clients/update/{email}`: начиная с 3x-ui 3.10.2 общий
+`inbounds/update/{id}` намеренно игнорирует `settings.clients`. Rollback
+восстанавливает сохранённый client payload и не заменяет БД целиком.
+
+Дополнительная проверка зарубежного egress обязательна: российские домены
+могут идти напрямую и скрыть отказ VLESS outbound. Если удалённый inbound уже
+содержит нового клиента, а `xrayTemplateConfig` всё ещё использует старые UUID
+или flow, `xui_outbound_client_recovery.py` меняет только `settings.id` и
+`settings.flow` выбранного outbound через SQLite compare-and-swap после online
+backup. Затем он перезапускает x-ui и проверяет сгенерированный активный config;
+при ошибке выполняется автоматический rollback. Удалённый узел перезапускается
+отдельно, только если его БД и активный Xray config расходятся.
+
+**Результат 2026-10-16: принято.** Subscription URL отвечает `200` с
+`ssl_verify_result=0`; x-ui, TrustTunnel, bridge и Nginx active, `443`,
+`8443/tcp+udp`, `65535` и `24527` слушают. `ttx doctor`, dry-run reconcile,
+TrustTunnel e2e с egress `95.182.85.8` и настоящий VLESS Reality smoke через
+public `443` прошли. Контролируемые restart x-ui подтвердили возврат зависимых
+сервисов. Drop-in удаляется отдельно только при отказе от этой автоматики.
+
 ## 15. Журнал изменений
+
+- **2026-10-16, REPO 0.2.5** — восстановлены subscription token,
+  TrustTunnel/ttx-bridge после web update 3x-ui и зарубежный egress через
+  синхронизацию UUID/flow польского outbound; все приёмочные smoke прошли.
 
 - **2026-08-23, REPO 0.2.4** — восстановлено автоматическое обновление
   короткоживущего Let's Encrypt IP-сертификата: `acme.sh` переведён со

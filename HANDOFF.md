@@ -1,7 +1,7 @@
 # Handoff: ffknd.ru portal production
 
 Актуальная спецификация: [SPEC.md](SPEC.md). Версия REPO:
-[0.2.4](REPO_VERSION.md).
+[0.2.5](REPO_VERSION.md).
 
 ## Текущее подтверждённое состояние
 
@@ -16,8 +16,8 @@
 - TrustTunnel независимо слушает `8443/tcp+udp` и использует Xray SOCKS
   ingress `127.0.0.1:10800`.
 - x-ui слушает отдельный HTTPS endpoint подписок на `*:65535/tcp`; UFW
-  пропускает порт без предшествующего `REJECT`. Внешний GET с обычной
-  TLS-проверкой принят 2026-08-23.
+  пропускает порт без предшествующего `REJECT`. Прежний URL текущего клиента
+  восстановлен; внешний GET с обычной TLS-проверкой принят 2026-10-16.
 - IP-сертификат подписки выпускает `acme.sh` с профилем `shortlived` через
   Nginx default-server webroot `/var/www/html`; следующий renew хранится в
   domain config. Certbot управляет только `ffknd.ru` и этот IP-сертификат не
@@ -35,6 +35,9 @@
   `MemorySwapMax=512M`, `TasksMax=256`.
 - После memory hardening прошли официальный TrustTunnel Client
   e2e через `tt.ffknd.ru:8443` и Reality e2e через public `443`.
+- После web update 3x-ui локальный drop-in возвращает `ttx-bridge` и
+  TrustTunnel при старте x-ui. Польский outbound синхронизирован с текущим
+  клиентом; e2e подтвердил внешний IP `95.182.85.8`.
 
 ## Состояние и резервные копии
 
@@ -51,6 +54,10 @@
   `/root/ufw-before-subscription-v0.2.3-20260823/`.
 - IP-сертификат и acme.sh domain config до REPO 0.2.4:
   `/root/acme-ip-before-v0.2.4-20260823/`.
+- Восстановление subscription token REPO 0.2.5:
+  `/var/lib/ffknd-subscription-recovery-v0.2.5/`.
+- Синхронизация польского outbound REPO 0.2.5:
+  `/var/lib/ffknd-outbound-client-recovery-v0.2.5/`.
 - SHA-256 `deploy/xui_portal_cutover.py` для версии 0.2.0:
   `843a0c19b6ae631eec6dd4343cb44482a618ac6bdecd88c659984fc2150b11c6`.
 - Старый TrustTunnel drop-in сохранён в
