@@ -31,6 +31,32 @@ class PortalOperationsContractTests(unittest.TestCase):
         self.assertNotIn("Requires=", drop_in)
         self.assertIn("20-ttx-dependents.conf", installer)
 
+    def test_installer_deploys_all_recovery_and_smoke_tools(self):
+        installer = (ROOT / "install/ttx-install.sh").read_text(encoding="utf-8")
+
+        self.assertIn('"$TTX_DIR/recovery"', installer)
+        for name in (
+            "xui_portal_cutover.py",
+            "xui_subscription_recovery.py",
+            "xui_outbound_client_recovery.py",
+            "portal-health-smoke.sh",
+            "reality-e2e-smoke.sh",
+            "reality_smoke_config.py",
+        ):
+            self.assertIn(name, installer)
+
+    def test_remote_deploy_has_one_command_production_update(self):
+        deploy = (ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--production-update", deploy)
+        self.assertIn("install/ttx-install.sh", deploy)
+        self.assertIn("systemctl start x-ui.service", deploy)
+        self.assertIn("/opt/ttx/tests/portal-health-smoke.sh", deploy)
+        self.assertIn("ttx doctor", deploy)
+        self.assertIn("ttx reconcile --dry-run", deploy)
+        self.assertIn("/opt/ttx/tests/e2e-smoke.sh", deploy)
+        self.assertIn("/opt/ttx/tests/reality-e2e-smoke.sh", deploy)
+
     def test_bare_metal_env_uses_systemd_writable_state_directory(self):
         environment = (ROOT / "portal/portal.env.example").read_text(encoding="utf-8")
 

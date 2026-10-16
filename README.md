@@ -1,6 +1,6 @@
 # CascadeVPN / ffknd portal
 
-Текущая версия REPO: [0.2.5](REPO_VERSION.md). Полная нормативная
+Текущая версия REPO: [0.2.6](REPO_VERSION.md). Полная нормативная
 конфигурация: [SPEC.md](SPEC.md). Точка безопасного продолжения эксплуатации:
 [HANDOFF.md](HANDOFF.md).
 
@@ -85,6 +85,21 @@ SQLite хранит серверные сессии, настройки пров
 `ttx doctor`. Обновления upstream всё равно сначала проверяйте на стенде.
 
 ## 3. Установка (bare-metal)
+
+### Обновить текущий production одной командой
+
+Из локального checkout:
+
+```bash
+./deploy/deploy.sh sel --production-update --branch main
+```
+
+Команда сама синхронизирует код, установит bridge, portal, systemd drop-in,
+smoke- и recovery-инструменты, перезапустит только управляемые процессы,
+выполнит `ttx doctor`, dry-run reconcile, TrustTunnel e2e и настоящий Reality
+smoke. Она не меняет UFW, routing, subscription token и VPN credentials.
+Если нужны также внешние portal/CONNECT проверки, перед запуском задайте вместе
+`PORTAL_PUBLIC_URL`, `TT_CLIENT_USERNAME` и `TT_CLIENT_PASSWORD`.
 
 ### Быстрый старт (Ubuntu)
 

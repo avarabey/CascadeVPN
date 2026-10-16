@@ -1,7 +1,7 @@
 # Handoff: ffknd.ru portal production
 
 Актуальная спецификация: [SPEC.md](SPEC.md). Версия REPO:
-[0.2.5](REPO_VERSION.md).
+[0.2.6](REPO_VERSION.md).
 
 ## Текущее подтверждённое состояние
 
@@ -103,6 +103,14 @@ env REALITY_SMOKE_INBOUND_TAG=in-10443-tcp \
 
 Снаружи дополнительно проверить `https://ffknd.ru/api/health` без `-k` и
 фиксированный `308` с `https://www.ffknd.ru/...` на apex.
+
+Штатное обновление всего overlay с локальной машины выполняется одной командой:
+
+```bash
+./deploy/deploy.sh sel --production-update --branch main
+```
+
+Режим не применяет client-specific recovery и не запускает generic bootstrap.
 
 ## Аварийный rollback production 443
 

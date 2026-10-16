@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Разворачивает обвязку CascadeVPN (ttx) на удалённом сервере по SSH:
 # синхронизирует репозиторий rsync'ом и (если не указано --skip-install)
-# запускает install/ttx-install.sh на сервере.
+# запускает install/ttx-install.sh на сервере. Режим --production-update
+# дополнительно запускает сервисы и выполняет всю production-приёмку.
 #
 # Секреты (bridge.json, vpn.base.toml, сертификаты) НЕ трогает и НЕ
 # перезаписывает на сервере — они исключены из синхронизации явно, чтобы
@@ -10,7 +11,7 @@
 #
 # Использование:
 #   ./deploy/deploy.sh user@host [--branch main] [--remote-dir ttx-src]
-#                                 [--skip-install] [--dry-run]
+#                                 [--production-update] [--skip-install] [--dry-run]
 #
 # Требования на клиенте: ssh, rsync, (опционально) git — для проверки ветки.
 # Требования на сервере:  python3 >= 3.11, systemd, root или sudo по SSH.
@@ -26,6 +27,8 @@ usage() {
                          git-ветка/тег перед деплоем (по умолчанию: без проверки)
   --remote-dir <path>   куда класть исходники на сервере (по умолчанию: ttx-src в home)
   --skip-install        только синхронизировать файлы, install/ttx-install.sh не запускать
+  --production-update   одной командой обновить настроенный production:
+                         overlay install, systemd, doctor, dry-run и оба e2e-smoke
   --dry-run             показать, что будет сделано (rsync --dry-run, установка не запускается)
   -h, --help             эта справка
 EOF
@@ -36,12 +39,14 @@ BRANCH=""
 REMOTE_DIR="ttx-src"
 SKIP_INSTALL=0
 DRY_RUN=0
+PRODUCTION_UPDATE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch) BRANCH="${2:?--branch требует значение}"; shift 2 ;;
     --remote-dir) REMOTE_DIR="${2:?--remote-dir требует значение}"; shift 2 ;;
     --skip-install) SKIP_INSTALL=1; shift ;;
+    --production-update) PRODUCTION_UPDATE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "неизвестная опция: $1" >&2; usage; exit 1 ;;
@@ -54,6 +59,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$HOST" ]] || { usage; exit 1; }
+[[ $SKIP_INSTALL -eq 0 || $PRODUCTION_UPDATE -eq 0 ]] \
+  || { echo "--skip-install несовместим с --production-update" >&2; exit 1; }
 
 log()  { printf '\033[1;36m[deploy]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[deploy]\033[0m %s\n' "$*"; }
@@ -95,13 +102,36 @@ if [[ $SKIP_INSTALL -eq 1 ]]; then
 fi
 
 INSTALL_CMD="cd '$REMOTE_DIR' && sudo ./install/ttx-install.sh"
+if [[ $PRODUCTION_UPDATE -eq 1 ]]; then
+  REALITY_TAG="${REALITY_SMOKE_INBOUND_TAG:-in-10443-tcp}"
+  [[ "$REALITY_TAG" =~ ^[A-Za-z0-9._:-]+$ ]] \
+    || die "REALITY_SMOKE_INBOUND_TAG содержит недопустимые символы"
+  INSTALL_CMD="cd '$REMOTE_DIR'"$' && '\
+"sudo ./install/ttx-install.sh"$' && '\
+"sudo systemctl daemon-reload"$' && '\
+"sudo systemctl start x-ui.service"$' && '\
+"sudo systemctl try-restart ttx-bridge.service ffknd-portal.service"$' && '\
+"if sudo systemctl is-active --quiet ffknd-portal.service; then sudo /opt/ttx/tests/portal-health-smoke.sh; fi"$' && '\
+"sudo ttx doctor"$' && '\
+"sudo ttx reconcile --dry-run"$' && '\
+"sudo /opt/ttx/tests/e2e-smoke.sh"$' && '\
+"sudo env REALITY_SMOKE_INBOUND_TAG='$REALITY_TAG' bash /opt/ttx/tests/reality-e2e-smoke.sh"
+fi
 if [[ $DRY_RUN -eq 1 ]]; then
   log "(dry-run) на сервере выполнилось бы: $INSTALL_CMD"
   exit 0
 fi
 
-log "запускаю установку на сервере ($HOST)..."
-ssh -t "$HOST" "$INSTALL_CMD"
+if [[ $PRODUCTION_UPDATE -eq 1 ]]; then
+  log "запускаю полное production-обновление и приёмку ($HOST)..."
+else
+  log "запускаю установку на сервере ($HOST)..."
+fi
+if [[ $PRODUCTION_UPDATE -eq 1 ]]; then
+  ssh "$HOST" "$INSTALL_CMD"
+else
+  ssh -t "$HOST" "$INSTALL_CMD"
+fi
 
 # Публичный 443 проверяется именно с машины деплоя, а не изнутри сервера.
 # Тест не запускается по неявному адресу и не ждёт бесконечно: сам скрипт
@@ -119,6 +149,11 @@ elif [[ -n "${PORTAL_PUBLIC_URL:-}${TT_CLIENT_USERNAME:-}${TT_CLIENT_PASSWORD:-}
   warn "port443 smoke пропущен: задайте вместе PORTAL_PUBLIC_URL, TT_CLIENT_USERNAME и TT_CLIENT_PASSWORD"
 else
   log "port443 smoke не запрошен (для запуска задайте PORTAL_PUBLIC_URL + TT_CLIENT_USERNAME + TT_CLIENT_PASSWORD)"
+fi
+
+if [[ $PRODUCTION_UPDATE -eq 1 ]]; then
+  log "production update завершён: код, сервисы и обязательные smoke-проверки приняты"
+  exit 0
 fi
 
 cat <<EOF

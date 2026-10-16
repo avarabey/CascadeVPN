@@ -1,6 +1,6 @@
 # REPO version
 
-**Version:** `0.2.5`
+**Version:** `0.2.6`
 
 **Specification:** [SPEC.md](SPEC.md)
 
@@ -14,6 +14,10 @@ Xray Reality backend на loopback, независимый TrustTunnel на `844
 автоматически возвращает TrustTunnel и bridge, точечно восстанавливает прежний
 subscription URL и синхронизирует учётные данные польского outbound с текущим
 клиентом по [SPEC.md §14.7](SPEC.md#147-восстановление-после-web-update-3x-ui).
+
+REPO 0.2.6 добавляет одну операторскую команду для безопасного обновления уже
+настроенного production-хоста: синхронизация, установка всех overlay/recovery
+артефактов, запуск сервисов, doctor, dry-run и оба e2e-smoke.
 
 Приняты обычная TLS-проверка subscription endpoint, TrustTunnel e2e с выходом
 через Польшу, настоящий VLESS Reality smoke на `443`, `ttx doctor` и dry-run

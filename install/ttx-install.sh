@@ -70,8 +70,19 @@ step_trusttunnel() {
 step_overlay() {
   log "разворачиваю обвязку в $TTX_DIR"
   install -d "$TTX_DIR/bridge" "$TTX_ETC" "$TTX_DIR/tests"
+  install -d -m 0700 "$TTX_DIR/recovery"
   install -m 0755 "$SRC/bridge/ttx_bridge.py" "$TTX_DIR/bridge/ttx_bridge.py"
   install -m 0755 "$SRC/tests/e2e-smoke.sh"   "$TTX_DIR/tests/e2e-smoke.sh"
+  install -m 0755 "$SRC/tests/portal-health-smoke.sh" \
+                  "$TTX_DIR/tests/portal-health-smoke.sh"
+  install -m 0755 "$SRC/tests/reality-e2e-smoke.sh" \
+                  "$TTX_DIR/tests/reality-e2e-smoke.sh"
+  install -m 0755 "$SRC/tests/reality_smoke_config.py" \
+                  "$TTX_DIR/tests/reality_smoke_config.py"
+  for tool in xui_portal_cutover.py xui_subscription_recovery.py \
+              xui_outbound_client_recovery.py; do
+    install -m 0700 "$SRC/deploy/$tool" "$TTX_DIR/recovery/$tool"
+  done
   install -m 0644 "$SRC/templates/compat.json" "$TTX_ETC/compat.json"
 
   [[ -f "$TTX_ETC/bridge.json" ]] || {
@@ -155,9 +166,13 @@ CLI
     systemctl disable --now ffknd-portal \
       || die "не удалось безопасно остановить ffknd-portal"
   fi
-  log "portal установлен; установщик не запускает его автоматически"
-  log "создайте хеш: cd $TTX_DIR/portal && $PYTHON_BIN_PATH -m app hash-password"
-  log "сохраните PORTAL_PASSWORD_HASH в $TTX_ETC/portal.env и включите ffknd-portal"
+  if portal_hash_configured; then
+    log "portal установлен; существующий PORTAL_PASSWORD_HASH сохранён"
+  else
+    log "portal установлен, но не запускается без настроенного хеша"
+    log "создайте хеш: cd $TTX_DIR/portal && $PYTHON_BIN_PATH -m app hash-password"
+    log "сохраните PORTAL_PASSWORD_HASH в $TTX_ETC/portal.env и включите ffknd-portal"
+  fi
   log "rollback reverse proxy: ffknd-portal-config remove $TTX_ETC/vpn.base.toml"
 }
 

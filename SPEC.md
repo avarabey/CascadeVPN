@@ -1,8 +1,8 @@
 # SPEC — CascadeVPN / ffknd portal
 
-**Версия спецификации:** 0.2.5
+**Версия спецификации:** 0.2.6
 
-**Версия REPO:** [0.2.5](REPO_VERSION.md)
+**Версия REPO:** [0.2.6](REPO_VERSION.md)
 
 **Состояние:** production cutover публичного `443/tcp` завершён; portal 0.1.1
 с исправленным QR-rendering развёрнут, критерии §14.3 выполнены 2026-08-20.
@@ -452,8 +452,29 @@ sudoedit /etc/ttx/portal.env
 sudo systemctl enable --now ffknd-portal
 ```
 
-`trusttunnel.service` не имеет зависимостей `Wants=` или `Requires=` на `ffknd-portal.service`:
-туннель запускается и при намеренно выключенном портале.
+`trusttunnel.service` не имеет зависимостей `Wants=` или `Requires=` на
+`ffknd-portal.service`: туннель запускается и при намеренно выключенном портале.
+
+### 12.1.1. Одна команда для production update
+
+`deploy/deploy.sh <ssh-host> --production-update` является единственной
+операторской командой для обновления уже настроенного production-хоста. Она:
+
+1. синхронизирует репозиторий без серверных секретов;
+2. запускает идемпотентный overlay installer;
+3. устанавливает bridge, portal, systemd drop-in, оба e2e-smoke и root-only
+   recovery-инструменты в `/opt/ttx/recovery`;
+4. выполняет `daemon-reload`, запускает `x-ui` вместе с локальными
+   зависимостями, затем `ttx doctor` и `ttx reconcile --dry-run`;
+5. требует успешного TrustTunnel e2e и настоящего VLESS Reality smoke;
+6. при наличии `PORTAL_PUBLIC_URL`, `TT_CLIENT_USERNAME` и
+   `TT_CLIENT_PASSWORD` дополнительно выполняет внешний portal/CONNECT smoke.
+
+Режим не вызывает `ttx reconcile` с записью, generic bootstrap, изменение UFW
+или client-specific recovery. Поэтому он пригоден для текущей production-схемы
+`443`/`8443` и не меняет routing, subscription token либо VPN credentials.
+Любая обязательная проверка завершает команду ненулевым кодом; финальный текст
+не содержит списка ручных шагов.
 
 `install/ttx-install.sh` копирует portal в `/opt/ttx/portal`, создаёт
 `ttx-portal`, каталог `/var/lib/ffknd-portal` с режимом `0700` и unit. Если
@@ -834,6 +855,11 @@ public `443` прошли. Контролируемые restart x-ui подтв�
 сервисов. Drop-in удаляется отдельно только при отказе от этой автоматики.
 
 ## 15. Журнал изменений
+
+- **2026-10-16, REPO 0.2.6** — `deploy/deploy.sh --production-update`
+  свёл обновление настроенного production-хоста к одной команде: deploy всех
+  overlay/recovery-артефактов, systemd reload/start, portal health, doctor,
+  dry-run reconcile и обязательные TrustTunnel/Reality e2e-smoke.
 
 - **2026-10-16, REPO 0.2.5** — восстановлены subscription token,
   TrustTunnel/ttx-bridge после web update 3x-ui и зарубежный egress через
